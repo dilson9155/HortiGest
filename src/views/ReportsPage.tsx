@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { FileDown, RefreshCw, Search, FileText } from 'lucide-react';
-import { api } from '@/lib/api';
-import { brNum, isoDate, todayISO } from '@/lib/utils';
-import { SectionCard, Input, Button, Spinner, Select } from '@/components/UI';
-import { useToast } from '@/hooks/useToast';
+import { api } from '../lib/api';
+import { brNum, isoDate, todayISO } from '../lib/utils';
+import { SectionCard, Input, Button, Spinner, Select } from '../components/UI';
+import { useToast } from '../hooks/useToast';
 
 type Item = {
   id: string;

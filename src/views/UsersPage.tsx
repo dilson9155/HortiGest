@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { Plus, Search, RefreshCw, Edit3, KeyRound, Users, ShieldCheck, Eye } from 'lucide-react';
 import clsx from 'clsx';
-import { api, errorMessage } from '@/lib/api';
-import { useToast } from '@/hooks/useToast';
-import { SectionCard, Button, Input, Modal, ConfirmDialog, Spinner, Badge } from '@/components/UI';
-import Toggle from '@/components/Toggle';
+import { api, errorMessage } from '../lib/api';
+import { useToast } from '../hooks/useToast';
+import { SectionCard, Button, Input, Modal, ConfirmDialog, Spinner, Badge } from '../components/UI';
+import Toggle from '../components/Toggle';
 
 type User = {
   id: string;

@@ -1,6 +1,6 @@
-import { handler } from '@/lib/api-handler';
-import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { handler } from '../../../../lib/api-handler';
+import { prisma } from '../../../../lib/prisma';
+import { getSession } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 

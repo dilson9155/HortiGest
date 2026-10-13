@@ -1,7 +1,7 @@
-import { prisma } from '@/lib/prisma';
-import { parseDateOnly } from '@/lib/calc';
-import { handler } from '@/lib/api-handler';
-import { getSession, requirePerm, HttpError } from '@/lib/session';
+import { prisma } from '../../../../lib/prisma';
+import { parseDateOnly } from '../../../../lib/calc';
+import { handler } from '../../../../lib/api-handler';
+import { getSession, requirePerm, HttpError } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 

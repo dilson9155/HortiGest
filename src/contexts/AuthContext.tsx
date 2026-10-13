@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api, setToken, getToken } from '@/lib/api';
+import { api, setToken, getToken } from '../lib/api';
 
 export type User = {
   id: string;

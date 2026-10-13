@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api, setToken } from '@/lib/api';
+import { api, setToken } from '../lib/api';
 
 type Branding = {
   /** URL/data da logo da empresa (data URL ou URL absoluta). null = usar padrão. */

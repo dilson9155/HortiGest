@@ -1,5 +1,5 @@
-import { handler } from '@/lib/api-handler';
-import { getSession } from '@/lib/session';
+import { handler } from '../../../../lib/api-handler';
+import { getSession } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 

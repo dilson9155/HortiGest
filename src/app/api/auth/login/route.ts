@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
-import { verifyPassword, signToken } from '@/lib/auth';
-import { handler } from '@/lib/api-handler';
+import { prisma } from '../../../../lib/prisma';
+import { verifyPassword, signToken } from '../../../../lib/auth';
+import { handler } from '../../../../lib/api-handler';
 
 export const runtime = 'nodejs';
 

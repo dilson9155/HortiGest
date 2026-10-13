@@ -19,10 +19,10 @@ import {
   KeyRound,
   Leaf,
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useBrandingSafe } from '@/contexts/BrandingContext';
-import { useToast } from '@/hooks/useToast';
-import { api } from '@/lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useBrandingSafe } from '../contexts/BrandingContext';
+import { useToast } from '../hooks/useToast';
+import { api } from '../lib/api';
 
 type Item = {
   to: string;

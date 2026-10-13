@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
-import { handler } from '@/lib/api-handler';
-import { getSession, requirePerm, HttpError } from '@/lib/session';
+import { prisma } from '../../../lib/prisma';
+import { handler } from '../../../lib/api-handler';
+import { getSession, requirePerm, HttpError } from '../../../lib/session';
 
 export const runtime = 'nodejs';
 

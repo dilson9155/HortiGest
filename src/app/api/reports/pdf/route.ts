@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../../../lib/prisma';
 import PDFDocument from 'pdfkit';
-import { parseDateOnly } from '@/lib/calc';
-import { getSession, requirePerm, HttpError } from '@/lib/session';
+import { parseDateOnly } from '../../../../lib/calc';
+import { getSession, requirePerm, HttpError } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

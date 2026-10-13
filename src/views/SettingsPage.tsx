@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { Save, RefreshCw, Upload, X, Image as ImageIcon, Building2, Settings as SettingsIcon } from 'lucide-react';
 import clsx from 'clsx';
-import { api, errorMessage } from '@/lib/api';
-import { useToast } from '@/hooks/useToast';
-import { SectionCard, Button, Input, Spinner } from '@/components/UI';
-import { useBranding } from '@/contexts/BrandingContext';
+import { api, errorMessage } from '../lib/api';
+import { useToast } from '../hooks/useToast';
+import { SectionCard, Button, Input, Spinner } from '../components/UI';
+import { useBranding } from '../contexts/BrandingContext';
 
 export default function SettingsPage() {
   const { toast } = useToast();

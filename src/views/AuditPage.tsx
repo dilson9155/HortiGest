@@ -4,9 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { RefreshCw, Search, History } from 'lucide-react';
-import { api } from '@/lib/api';
-import { SectionCard, Input, Button, Spinner, Select } from '@/components/UI';
-import { brDateTime } from '@/lib/utils';
+import { api } from '../lib/api';
+import { SectionCard, Input, Button, Spinner, Select } from '../components/UI';
+import { brDateTime } from '../lib/utils';
 
 type Audit = {
   id: string;

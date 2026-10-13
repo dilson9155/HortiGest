@@ -5,11 +5,11 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { Plus, Search, RefreshCw, Trash2, Edit3, Scale, Truck, Boxes, Package, History } from 'lucide-react';
 import clsx from 'clsx';
-import { api, errorMessage } from '@/lib/api';
-import { useToast } from '@/hooks/useToast';
-import { useAuth } from '@/contexts/AuthContext';
-import { SectionCard, Button, Input, Spinner, Modal, ConfirmDialog, NumberInput, Badge } from '@/components/UI';
-import Toggle from '@/components/Toggle';
+import { api, errorMessage } from '../lib/api';
+import { useToast } from '../hooks/useToast';
+import { useAuth } from '../contexts/AuthContext';
+import { SectionCard, Button, Input, Spinner, Modal, ConfirmDialog, NumberInput, Badge } from '../components/UI';
+import Toggle from '../components/Toggle';
 
 type Product = { id: string; name: string; defaultBoxKg: number; active: boolean; createdAt: string };
 type Supplier = { id: string; name: string; active: boolean; createdAt: string };

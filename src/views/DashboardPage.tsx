@@ -19,9 +19,9 @@ import {
   Cell,
 } from 'recharts';
 import { Box, Trash2, AlertOctagon, ClipboardCheck, Truck, Activity } from 'lucide-react';
-import { api } from '@/lib/api';
-import { brDateTime, brNum, todayISO } from '@/lib/utils';
-import { SectionCard, Input, Spinner } from '@/components/UI';
+import { api } from '../lib/api';
+import { brDateTime, brNum, todayISO } from '../lib/utils';
+import { SectionCard, Input, Spinner } from '../components/UI';
 
 type IndicatorCards = {
   totalReceivedBoxes: number;

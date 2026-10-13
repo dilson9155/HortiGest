@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
-import { hashPassword, verifyPassword } from '@/lib/auth';
-import { handler } from '@/lib/api-handler';
-import { getSession, HttpError } from '@/lib/session';
+import { prisma } from '../../../../lib/prisma';
+import { hashPassword, verifyPassword } from '../../../../lib/auth';
+import { handler } from '../../../../lib/api-handler';
+import { getSession, HttpError } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 

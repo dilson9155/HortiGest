@@ -1,4 +1,4 @@
-import CadastrosPage from '@/views/CadastrosPage';
+import CadastrosPage from '../../views/CadastrosPage';
 export default function Page() {
   return <CadastrosPage kind="suppliers" />;
 }

@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, Lock, User, Sprout, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/useToast';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
 
 export default function LoginPage() {
   const { login } = useAuth();

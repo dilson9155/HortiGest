@@ -5,12 +5,12 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, RefreshCw, Search, Package, Pencil, History, Send } from 'lucide-react';
 import clsx from 'clsx';
-import { api, errorMessage } from '@/lib/api';
-import { brNum, calcMissing, isoDate, todayISO } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/useToast';
-import { SectionCard, NumberInput, Input, Button, Spinner, ConfirmDialog, Badge } from '@/components/UI';
-import SearchSelect from '@/components/SearchSelect';
+import { api, errorMessage } from '../lib/api';
+import { brNum, calcMissing, isoDate, todayISO } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
+import { SectionCard, NumberInput, Input, Button, Spinner, ConfirmDialog, Badge } from '../components/UI';
+import SearchSelect from '../components/SearchSelect';
 
 type Product = { id: string; name: string; defaultBoxKg: number; active: boolean };
 type Supplier = { id: string; name: string; active: boolean };

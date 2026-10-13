@@ -1,1 +1,1 @@
-export { default } from '@/views/SettingsPage';
+export { default } from '../../views/SettingsPage';

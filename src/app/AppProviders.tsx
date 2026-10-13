@@ -1,13 +1,13 @@
 'use client';
 
-import { ToastProvider } from '@/hooks/useToast';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { BrandingProvider } from '@/contexts/BrandingContext';
+import { ToastProvider } from '../hooks/useToast';
+import { AuthProvider } from '../contexts/AuthContext';
+import { BrandingProvider } from '../contexts/BrandingContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { Spinner } from '@/components/UI';
+import { useAuth } from '../contexts/AuthContext';
+import { Spinner } from '../components/UI';
 import { useEffect } from 'react';
-import Layout from '@/layout/Layout';
+import Layout from '../layout/Layout';
 
 /**
  * Provider raiz + proteção de rotas.

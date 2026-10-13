@@ -1,1 +1,1 @@
-export { default } from '@/views/DashboardPage';
+export { default } from '../views/DashboardPage';
