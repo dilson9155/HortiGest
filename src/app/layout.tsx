@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { AppProviders } from './AppProviders';
 
 export const metadata: Metadata = {
   title: 'HortiGest — Controle e Produção de Hortifrúti',
   description: 'Sistema de controle de recebimento e produção de frutas, legumes e verduras.',
   manifest: '/manifest.webmanifest',
-  icons: {
-    icon: '/logo.png',
-  },
+  icons: { icon: '/logo.png' },
 };
 
 export const viewport: Viewport = {
@@ -26,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="bg-slate-50">{children}</body>
+      <body className="bg-slate-50">
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

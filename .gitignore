@@ -23,3 +23,5 @@ pm2.logs/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+.trigger
+

@@ -1,4 +1,7 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -35,13 +38,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const logoSrc = branding.logo ?? '/logo.png';
   const companyAlt = branding.companyName || 'HortiGest';
   const { toast } = useToast();
-  const nav = useNavigate();
-  const location = useLocation();
+  const _router = useRouter();
+  const nav = (path: string) => _router.push(path);
+  const location = usePathname();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setOpen(false);
-  }, [location.pathname]);
+  }, [location]);
 
   if (!user) return <>{children}</>;
 
@@ -66,7 +70,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
     logout();
     toast('info', 'Sessão encerrada.');
-    nav('/login', { replace: true });
+    nav('/login');
   }
 
   async function openChangePassword() {
@@ -210,25 +214,28 @@ function SidebarContent({
       {/* Navegação */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <ul className="space-y-1">
-          {items.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  clsx(
+          {items.map((item) => {
+            const loc = location ? String(location) : '';
+            const isActive = item.to === '/'
+              ? loc === item.to
+              : loc === item.to || loc.startsWith(item.to + '/');
+            return (
+              <li key={item.to}>
+                <Link
+                  href={item.to}
+                  className={clsx(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
                     isActive
                       ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md shadow-brand-500/30'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-                  )
-                }
-              >
-                <item.icon size={18} />
-                <span>{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
+                  )}
+                >
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 

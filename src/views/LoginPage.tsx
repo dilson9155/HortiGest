@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, Lock, User, Sprout, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
@@ -11,8 +11,8 @@ import { useToast } from '@/hooks/useToast';
 export default function LoginPage() {
   const { login } = useAuth();
   const { toast } = useToast();
-  const nav = useNavigate();
-  const loc = useLocation();
+  const _router = useRouter(); const nav = (path: string) => _router.push(path);
+  const loc = usePathname();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -29,8 +29,8 @@ export default function LoginPage() {
     setLoading(false);
     if (r.ok) {
       toast('success', 'Bem-vindo!');
-      const to = (loc.state as any)?.from?.pathname || '/';
-      nav(to, { replace: true });
+      const to = '/';
+      _router.replace(to);
     } else {
       toast('error', r.error || 'Falha no login.');
     }
