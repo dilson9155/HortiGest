@@ -72,6 +72,17 @@ export async function getSession(req?: Request): Promise<SessionUser | null> {
   };
 }
 
+/**
+ * Extrai o `id` de rotas dinâmicas do App Router ([id]).
+ * No Next.js 15 `params` é uma Promise, por isso o `await`.
+ */
+export async function routeId(ctx: any): Promise<string> {
+  const params = await ctx?.params;
+  const id = params?.id;
+  if (!id) throw new HttpError(400, 'INVALID', 'ID obrigatório.');
+  return id as string;
+}
+
 /** Lança HttpError se faltar permissão. */
 export function requirePerm(session: SessionUser | null, module: Module, action: Actions) {
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');

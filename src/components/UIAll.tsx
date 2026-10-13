@@ -138,15 +138,17 @@ export function Modal({
     width === 'sm' ? 'max-w-sm' : width === 'lg' ? 'max-w-3xl' : width === 'xl' ? 'max-w-5xl' : 'max-w-md';
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-slate-900/60 p-2 sm:p-4">
-      <div className={clsx('card w-full p-5 sm:p-6', w)}>
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-700">
-            ✕
-          </button>
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-900/60">
+      <div className="flex min-h-full items-end sm:items-center justify-center p-2 sm:p-4">
+        <div className={clsx('card w-full p-5 sm:p-6', w)}>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <h2 className="text-base font-bold text-slate-900">{title}</h2>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-700">
+              ✕
+            </button>
+          </div>
+          <div>{children}</div>
         </div>
-        <div>{children}</div>
       </div>
     </div>
   );

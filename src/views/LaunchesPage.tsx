@@ -318,6 +318,7 @@ export default function LaunchesPage() {
                         items={products.map((p) => ({ id: p.id, label: p.name, meta: `${Number(p.defaultBoxKg).toFixed(2)} kg` }))}
                         value={r.productId}
                         onChange={(id) => setRow(idx, { productId: id })}
+                        placeholder="Buscar produto..."
                       />
                     </td>
                     <td className="py-2 px-2">
@@ -325,6 +326,7 @@ export default function LaunchesPage() {
                         items={suppliers.map((s) => ({ id: s.id, label: s.name }))}
                         value={r.supplierId}
                         onChange={(id) => setRow(idx, { supplierId: id })}
+                        placeholder="Buscar fornecedor..."
                       />
                     </td>
                     <td className="py-2 px-2"><NumberInput value={r.received} onValueChange={(v) => setRow(idx, { received: v })} /></td>
@@ -383,15 +385,19 @@ export default function LaunchesPage() {
                   </button>
                 </div>
                 <SearchSelect
-                      items={products.map((p) => ({ id: p.id, label: p.name, meta: `${Number(p.defaultBoxKg).toFixed(2)} kg` }))}
-                      value={r.productId}
-                      onChange={(id) => setRow(idx, { productId: id })}
-                    />
-                  <SearchSelect
-                    items={suppliers.map((s) => ({ id: s.id, label: s.name }))}
-                    value={r.supplierId}
-                    onChange={(id) => setRow(idx, { supplierId: id })}
-                  />
+                  label="Produto"
+                  items={products.map((p) => ({ id: p.id, label: p.name, meta: `${Number(p.defaultBoxKg).toFixed(2)} kg` }))}
+                  value={r.productId}
+                  onChange={(id) => setRow(idx, { productId: id })}
+                  placeholder="Buscar produto..."
+                />
+                <SearchSelect
+                  label="Fornecedor"
+                  items={suppliers.map((s) => ({ id: s.id, label: s.name }))}
+                  value={r.supplierId}
+                  onChange={(id) => setRow(idx, { supplierId: id })}
+                  placeholder="Buscar fornecedor..."
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <NumberInput label="Recebido" value={r.received} onValueChange={(v) => setRow(idx, { received: v })} />
                   <NumberInput label="Produzido" value={r.produced} onValueChange={(v) => setRow(idx, { produced: v })} />

@@ -3,15 +3,14 @@ import clsx from 'clsx';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
 
 /**
- * Combobox pesquisável — abre a lista SÓ quando você começa a digitar.
+ * Combobox pesquisável.
  *
  * Comportamento:
- *  - Clique no campo (vazio): só foca, mostra placeholder.
- *  - Digitar: lista aparece filtrando em tempo real.
- *  - Clicar na seta: mostra todos os itens (atalho).
+ *  - Foco/clique no campo: abre a lista com todos os itens (funciona no toque).
+ *  - Digitar: filtra em tempo real.
  *  - Setas do teclado: navegam na lista.
  *  - Enter: seleciona item ativo.
- *  - Esc: fecha.
+ *  - Esc / clique fora: fecha e limpa a busca (mantém o item selecionado).
  */
 
 type Option = { id: string; label: string; meta?: string; disabled?: boolean; data?: any };
@@ -59,18 +58,17 @@ export default function SearchSelect({
   const selected = useMemo(() => items.find((it) => it.id === value), [items, value]);
 
   const filtered = useMemo(() => {
-    // Lista só aparece com query (digitação) ou quando o setinha foi clicada
-    // com filtro vazio — nesse caso mostramos todos.
     const fn = search || defaultSearch;
     return items.filter((it) => fn(it, query));
   }, [items, query, search]);
 
-  // Fecha ao clicar fora
+  // Fecha ao clicar fora. Sempre limpa a busca para não vazar texto antigo.
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!containerRef.current) return;
       if (!containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setQuery('');
       }
     }
     document.addEventListener('mousedown', onDocClick);
@@ -82,24 +80,33 @@ export default function SearchSelect({
     setActiveIdx(0);
   }, [query]);
 
-  function choose(id: string) {
-    onChange(id);
+  function openAll() {
+    if (disabled) return;
+    setOpen(true);
+    setActiveIdx(0);
+  }
+
+  function close() {
     setOpen(false);
     setQuery('');
+  }
+
+  function choose(id: string) {
+    onChange(id);
+    close();
     inputRef.current?.blur();
   }
 
   function clear() {
     onChange('');
     setQuery('');
+    setOpen(true);
     inputRef.current?.focus();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      // Se nada digitado, abre lista completa
-      if (!query) setQuery('');
       setOpen(true);
       setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
@@ -110,25 +117,18 @@ export default function SearchSelect({
       const it = filtered[activeIdx];
       if (it && !it.disabled) choose(it.id);
     } else if (e.key === 'Escape') {
-      setOpen(false);
-      setQuery('');
+      close();
     }
   }
 
-  // Quando há texto digitado, mostra a lista mesmo sem clique na seta
   function onChangeInput(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setQuery(v);
-    if (v.length > 0) setOpen(true);
-    else setOpen(false);
+    setOpen(true);
   }
 
-  function openWithAll() {
-    setQuery('');
-    setOpen(true);
-    setActiveIdx(0);
-    inputRef.current?.focus();
-  }
+  // Mostra o texto digitado enquanto a lista está aberta; senão, o item selecionado.
+  const displayValue = open && query.length > 0 ? query : selected?.label ?? '';
 
   return (
     <div className={clsx('relative', className)} ref={containerRef}>
@@ -146,12 +146,12 @@ export default function SearchSelect({
           ref={inputRef}
           type="text"
           disabled={disabled}
-          // Quando a lista está aberta e o usuário digitou algo, mostra o digitado.
-          // Quando fechada, mostra o nome do item selecionado.
-          value={open ? query : (selected?.label ?? '')}
+          value={displayValue}
           onChange={onChangeInput}
           onKeyDown={onKeyDown}
-          placeholder={selected ? undefined : placeholder}
+          onFocus={openAll}
+          onClick={openAll}
+          placeholder={placeholder}
           className={clsx(
             'w-full h-11 pl-10 pr-16 text-sm rounded-lg border-2 bg-white',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
@@ -176,7 +176,7 @@ export default function SearchSelect({
           <button
             type="button"
             tabIndex={-1}
-            onClick={openWithAll}
+            onClick={openAll}
             disabled={disabled}
             className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 transition"
             aria-label="Abrir lista"
@@ -186,10 +186,6 @@ export default function SearchSelect({
         </div>
       </div>
 
-      {/* Lista SÓ abre se "open" estiver true. open=true só quando:
-          - usuário digitou algo (openWithAll, onChangeInput)
-          - clicou na seta (openWithAll)
-      */}
       {open && (
         <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white rounded-xl border-2 border-slate-200 shadow-xl max-h-72 overflow-y-auto">
           {filtered.length === 0 ? (
