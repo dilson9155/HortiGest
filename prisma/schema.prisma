@@ -1,0 +1,205 @@
+// =============================================================
+//  SISTEMA HORTIFRÚTI — Schema Prisma
+// =============================================================
+//  Tabelas:
+//   - users / roles / permissions / role_permissions
+//   - fornecedores (suppliers)
+//   - produtos (products) com peso padrão da caixa
+//   - lancamentos (daily entries) + itens (entrada por produto)
+//   - system_settings (configurações chave/valor)
+//   - audit_logs (auditoria)
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+//  PERFIS E PERMISSÕES
+// ============================================================
+
+enum RoleKind {
+  ADMIN
+  SUPERVISOR
+  OPERADOR
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  kind        RoleKind @unique
+  name        String
+  description String?
+  system      Boolean  @default(false)
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
+// Permissões granulares por módulo. Armazenamos como JSON para
+// flexibilidade (visualizar, cadastrar, editar, excluir, exportar, etc).
+model RolePermission {
+  id        String   @id @default(cuid())
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    String   // 'launches', 'products', 'suppliers', 'users', 'reports', 'settings', 'dashboard'
+  actions   Json     // { view, create, edit, delete, export }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roleId, module])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  name         String
+  email        String?   @unique
+  passwordHash String
+  roleId       String?
+  role         Role?     @relation(fields: [roleId], references: [id])
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  launches     Launch[]
+  auditLogs    AuditLog[] @relation("AuditUser")
+
+  @@index([username])
+  @@index([active])
+  @@map("users")
+}
+
+// ============================================================
+//  CADASTROS: FORNECEDORES E PRODUTOS
+// ============================================================
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     LaunchItem[]
+
+  @@index([name])
+  @@index([active])
+  @@map("suppliers")
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  // Peso padrão da caixa em kg. Guardamos snapshot em cada item.
+  defaultBoxKg    Decimal  @db.Decimal(10, 3)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  items           LaunchItem[]
+
+  @@index([name])
+  @@index([active])
+  @@map("products")
+}
+
+// ============================================================
+//  LANÇAMENTOS DIÁRIOS
+// ============================================================
+//  Um Launch agrupa todos os produtos lançados em uma data por um usuário.
+//  Cada LaunchItem é um produto/fornecedor com suas quantidades.
+
+model Launch {
+  id          String       @id @default(cuid())
+  referenceDate DateTime   @db.Date          // Data do lançamento (dia)
+  notes        String?
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  items        LaunchItem[]
+
+  @@index([referenceDate])
+  @@index([userId])
+  @@map("launches")
+}
+
+model LaunchItem {
+  id           String   @id @default(cuid())
+  launchId     String
+  launch       Launch   @relation(fields: [launchId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  // Snapshot do nome do produto — preserva histórico.
+  productName  String
+  // Snapshot do nome do fornecedor.
+  supplierName String
+  // Snapshot do peso padrão da caixa no momento do lançamento.
+  boxKg        Decimal  @db.Decimal(10, 3)
+  // Quantidades em CAIXAS (decimal para permitir fracionamento).
+  received     Decimal  @default(0) @db.Decimal(14, 3)
+  produced     Decimal  @default(0) @db.Decimal(14, 3)
+  broken       Decimal  @default(0) @db.Decimal(14, 3)
+  // Falta = recebido - produzido - quebrado. Calculada no backend.
+  missing      Decimal  @default(0) @db.Decimal(14, 3)
+  notes        String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([launchId])
+  @@index([productId])
+  @@index([supplierId])
+  @@index([launchId, productId, supplierId])
+  @@map("launch_items")
+}
+
+// ============================================================
+//  CONFIGURAÇÕES E AUDITORIA
+// ============================================================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
+  jsonValue Json?
+  category  String   @default("GERAL")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation("AuditUser", fields: [userId], references: [id])
+  userName    String?  // snapshot (usuário pode ter sido removido)
+  entity      String   // ex.: "launch", "product", "user"
+  entityId    String?
+  operation   String   // CREATE | UPDATE | DELETE | LOGIN | LOGOUT | ...
+  description String
+  oldValues   Json?
+  newValues   Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

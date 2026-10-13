@@ -1,0 +1,25 @@
+# Deps
+node_modules/
+
+# Build
+.next/
+out/
+dist/
+
+# Local env
+.env
+.env.local
+.env.*.local
+run-seed.cjs
+prisma/dev.db
+prisma/dev.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+pm2.logs/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
