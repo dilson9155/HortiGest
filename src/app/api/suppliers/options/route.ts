@@ -5,16 +5,20 @@ import { getSession, HttpError } from '../../../../lib/session';
 export const runtime = 'nodejs';
 
 /**
- * Lista enxuta de fornecedores ativos para alimentar os combobox
- * (lançamentos e relatórios). Igual ao backend original: só exige autenticação.
+ * Lista enxuta de fornecedores para alimentar os combobox (lançamentos e relatórios).
+ * Por padrão devolve só os ativos. Com `?includeInactive=1` devolve também os
+ * inativos (útil ao editar lançamentos antigos, para exibir o nome do fornecedor).
  */
 export const GET = handler(async (req) => {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
 
+  const url = new URL(req.url);
+  const includeInactive = url.searchParams.get('includeInactive') === '1';
+
   return prisma.supplier.findMany({
-    where: { active: true },
+    where: includeInactive ? {} : { active: true },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true },
+    select: { id: true, name: true, active: true },
   });
 });

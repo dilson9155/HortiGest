@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Search, ChevronDown, X, Check } from 'lucide-react';
+import { Search, X, Check } from 'lucide-react';
 
 /**
- * Combobox pesquisável.
+ * Combobox de busca (autocomplete).
  *
- * Comportamento:
- *  - Foco/clique no campo: abre a lista com todos os itens (funciona no toque).
- *  - Digitar: filtra em tempo real.
- *  - Setas do teclado: navegam na lista.
- *  - Enter: seleciona item ativo.
+ * Comportamento desejado:
+ *  - A lista fica OCULTA. Nada de "lista suspensa" abrindo ao clicar.
+ *  - Ao COMEÇAR A DIGITAR, os itens filtrados aparecem.
+ *  - Seleciona com clique ou Enter.
  *  - Esc / clique fora: fecha e limpa a busca (mantém o item selecionado).
  */
 
@@ -24,6 +23,7 @@ type Props = {
   label?: string;
   required?: boolean;
   error?: string;
+  icon?: React.ReactNode;
   meta?: (item: Option) => string | undefined;
   search?: (item: Option, q: string) => boolean;
   emptyLabel?: string;
@@ -44,6 +44,7 @@ export default function SearchSelect({
   label,
   required,
   error,
+  icon,
   meta,
   search,
   emptyLabel = 'Nada encontrado',
@@ -75,16 +76,9 @@ export default function SearchSelect({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
-  // Reseta o índice quando a lista filtrada muda
   useEffect(() => {
     setActiveIdx(0);
   }, [query]);
-
-  function openAll() {
-    if (disabled) return;
-    setOpen(true);
-    setActiveIdx(0);
-  }
 
   function close() {
     setOpen(false);
@@ -100,14 +94,14 @@ export default function SearchSelect({
   function clear() {
     onChange('');
     setQuery('');
-    setOpen(true);
+    setOpen(false);
     inputRef.current?.focus();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setOpen(true);
       setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -121,14 +115,14 @@ export default function SearchSelect({
     }
   }
 
+  // A lista só aparece quando há texto digitado.
   function onChangeInput(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setQuery(v);
-    setOpen(true);
+    setOpen(v.trim().length > 0);
   }
 
-  // Mostra o texto digitado enquanto a lista está aberta; senão, o item selecionado.
-  const displayValue = open && query.length > 0 ? query : selected?.label ?? '';
+  const displayValue = open ? query : selected?.label ?? '';
 
   return (
     <div className={clsx('relative', className)} ref={containerRef}>
@@ -138,10 +132,16 @@ export default function SearchSelect({
         </label>
       )}
       <div className="relative">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-        />
+        {icon ? (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            {icon}
+          </span>
+        ) : (
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          />
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -149,11 +149,10 @@ export default function SearchSelect({
           value={displayValue}
           onChange={onChangeInput}
           onKeyDown={onKeyDown}
-          onFocus={openAll}
-          onClick={openAll}
+          onFocus={(e) => e.currentTarget.select()}
           placeholder={placeholder}
           className={clsx(
-            'w-full h-11 pl-10 pr-16 text-sm rounded-lg border-2 bg-white',
+            'w-full h-11 pl-10 pr-10 text-sm rounded-lg border-2 bg-white',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
             'placeholder:text-slate-400',
             error ? 'border-red-300' : 'border-slate-200',
@@ -161,41 +160,28 @@ export default function SearchSelect({
           )}
           autoComplete="off"
         />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-          {value && !disabled && (
-            <button
-              type="button"
-              onClick={clear}
-              tabIndex={-1}
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
-              aria-label="Limpar"
-            >
-              <X size={15} />
-            </button>
-          )}
+        {value && !disabled && (
           <button
             type="button"
+            onClick={clear}
             tabIndex={-1}
-            onClick={openAll}
-            disabled={disabled}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 transition"
-            aria-label="Abrir lista"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
+            aria-label="Limpar"
           >
-            <ChevronDown size={15} className={clsx('transition-transform', open && 'rotate-180')} />
+            <X size={15} />
           </button>
-        </div>
+        )}
       </div>
 
+      {/* Lista: aparece somente enquanto o usuário digita */}
       {open && (
         <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white rounded-xl border-2 border-slate-200 shadow-xl max-h-72 overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-slate-500">
               {emptyLabel}
-              {query && (
-                <div className="mt-1 text-xs">
-                  para "<span className="font-semibold text-slate-700">{query}</span>"
-                </div>
-              )}
+              <div className="mt-1 text-xs">
+                para "<span className="font-semibold text-slate-700">{query}</span>"
+              </div>
             </div>
           ) : (
             <ul role="listbox" className="py-1">

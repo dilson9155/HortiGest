@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Save, AlertTriangle, RefreshCw, Search, Package, Pencil, History, Send } from 'lucide-react';
+import { Plus, Trash2, Save, AlertTriangle, RefreshCw, Search, Package, Truck, Pencil, History, Send } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { brNum, calcMissing, isoDate, todayISO } from '../lib/utils';
@@ -45,11 +45,11 @@ export default function LaunchesPage() {
 
   const [history, setHistory] = useState<{ items: any[]; total: number; page: number; pageSize: number } | null>(null);
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
+    startDate: todayISO(),
+    endDate: todayISO(),
     q: '',
     page: 1,
-    pageSize: 10,
+    pageSize: 50,
   });
 
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,10 @@ export default function LaunchesPage() {
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
 
   async function loadOptions() {
-    const [p, s] = await Promise.all([api.get<Product[]>('/products/options'), api.get<Supplier[]>('/suppliers/options')]);
+    const [p, s] = await Promise.all([
+      api.get<Product[]>('/products/options?includeInactive=1'),
+      api.get<Supplier[]>('/suppliers/options?includeInactive=1'),
+    ]);
     if (p.ok) setProducts(p.data);
     if (s.ok) setSuppliers(s.data);
   }
@@ -99,6 +102,28 @@ export default function LaunchesPage() {
     );
   }, [rows]);
 
+  const productOptions = useMemo(
+    () =>
+      products.map((p) => ({
+        id: p.id,
+        label: p.name,
+        meta: `${Number(p.defaultBoxKg).toFixed(2)} kg${p.active ? '' : ' · inativo'}`,
+        disabled: !p.active,
+      })),
+    [products],
+  );
+
+  const supplierOptions = useMemo(
+    () =>
+      suppliers.map((s) => ({
+        id: s.id,
+        label: s.name,
+        meta: s.active ? undefined : 'inativo',
+        disabled: !s.active,
+      })),
+    [suppliers],
+  );
+
   function setRow(idx: number, patch: Partial<Row>) {
     setRows((arr) => arr.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
@@ -112,8 +137,9 @@ export default function LaunchesPage() {
   }
 
   async function handleSave() {
-    if (!canCreate) {
-      toast('error', 'Sem permissão para criar lançamentos.');
+    const isEditing = !!editingLaunchId;
+    if (isEditing ? !canEdit : !canCreate) {
+      toast('error', isEditing ? 'Sem permissão para editar lançamentos.' : 'Sem permissão para criar lançamentos.');
       return;
     }
     const valid = rows.filter((r) => r.productId && r.supplierId);
@@ -152,11 +178,13 @@ export default function LaunchesPage() {
         notes: r.notes ?? null,
       })),
     };
-    const r = await api.post('/launches', payload);
+    const r = isEditing
+      ? await api.put(`/launches/${editingLaunchId}`, payload)
+      : await api.post('/launches', payload);
     setLoading(false);
 
     if (r.ok) {
-      toast('success', `${valid.length} produto(s) lançado(s).`);
+      toast('success', isEditing ? 'Lançamento atualizado com sucesso.' : `${valid.length} produto(s) lançado(s).`);
       setRows([newRow()]);
       setNotes('');
       setEditingLaunchId(null);
@@ -243,7 +271,7 @@ export default function LaunchesPage() {
       />
 
       {/* ===== Card de novo lançamento ===== */}
-      <section className="rounded-2xl bg-white shadow-soft border border-slate-200 p-5 sm:p-7">
+      <section className={clsx('rounded-2xl bg-white shadow-soft border p-5 sm:p-7', editingLaunchId ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200')}>
         {/* Cabeçalho do card */}
         <header className="mb-6 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -255,17 +283,24 @@ export default function LaunchesPage() {
                 {editingLaunchId ? 'Editando lançamento' : 'Novo lançamento diário'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500">
-                Adicione produtos informando recebido, produzido e quebra. A falta é calculada automaticamente.
+                {editingLaunchId
+                  ? 'Altere os itens e quantidades e clique em "Salvar alterações".'
+                  : 'Adicione produtos informando recebido, produzido e quebra. A falta é calculada automaticamente.'}
               </p>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {editingLaunchId && (
+              <Button variant="ghost" onClick={doClear}>
+                Cancelar edição
+              </Button>
+            )}
             <Button variant="ghost" onClick={clearForm}>
               Limpar
             </Button>
-            <Button onClick={handleSave} disabled={!canCreate || loading} className="!h-10 !px-5">
+            <Button onClick={handleSave} disabled={!(editingLaunchId ? canEdit : canCreate) || loading} className="!h-10 !px-5">
               {loading ? <Spinner /> : <Send size={16} />}
-              Salvar lançamento
+              {editingLaunchId ? 'Salvar alterações' : 'Salvar lançamento'}
             </Button>
           </div>
         </header>
@@ -315,18 +350,20 @@ export default function LaunchesPage() {
                   <tr key={r._key} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
                     <td className="py-2 px-2">
                       <SearchSelect
-                        items={products.map((p) => ({ id: p.id, label: p.name, meta: `${Number(p.defaultBoxKg).toFixed(2)} kg` }))}
+                        icon={<Package size={16} />}
+                        items={productOptions}
                         value={r.productId}
                         onChange={(id) => setRow(idx, { productId: id })}
-                        placeholder="Buscar produto..."
+                        placeholder="Digite para buscar produto..."
                       />
                     </td>
                     <td className="py-2 px-2">
                       <SearchSelect
-                        items={suppliers.map((s) => ({ id: s.id, label: s.name }))}
+                        icon={<Truck size={16} />}
+                        items={supplierOptions}
                         value={r.supplierId}
                         onChange={(id) => setRow(idx, { supplierId: id })}
-                        placeholder="Buscar fornecedor..."
+                        placeholder="Digite para buscar fornecedor..."
                       />
                     </td>
                     <td className="py-2 px-2"><NumberInput value={r.received} onValueChange={(v) => setRow(idx, { received: v })} /></td>
@@ -385,18 +422,20 @@ export default function LaunchesPage() {
                   </button>
                 </div>
                 <SearchSelect
-                  label="Produto"
-                  items={products.map((p) => ({ id: p.id, label: p.name, meta: `${Number(p.defaultBoxKg).toFixed(2)} kg` }))}
+                  label="Mercadoria"
+                  icon={<Package size={16} />}
+                  items={productOptions}
                   value={r.productId}
                   onChange={(id) => setRow(idx, { productId: id })}
-                  placeholder="Buscar produto..."
+                  placeholder="Digite para buscar mercadoria..."
                 />
                 <SearchSelect
                   label="Fornecedor"
-                  items={suppliers.map((s) => ({ id: s.id, label: s.name }))}
+                  icon={<Truck size={16} />}
+                  items={supplierOptions}
                   value={r.supplierId}
                   onChange={(id) => setRow(idx, { supplierId: id })}
-                  placeholder="Buscar fornecedor..."
+                  placeholder="Digite para buscar fornecedor..."
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <NumberInput label="Recebido" value={r.received} onValueChange={(v) => setRow(idx, { received: v })} />
@@ -443,12 +482,22 @@ export default function LaunchesPage() {
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Histórico de lançamentos</h2>
-              <p className="text-xs sm:text-sm text-slate-500">Consulte, edite ou exclua lançamentos anteriores.</p>
+              <p className="text-xs sm:text-sm text-slate-500">
+                Mostrando por padrão os lançamentos de hoje. Para ver outro período, ajuste as datas.
+              </p>
             </div>
           </div>
-          <Button variant="secondary" onClick={loadHistory}>
-            <RefreshCw size={14} /> Atualizar
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="secondary"
+              onClick={() => setFilters((f) => ({ ...f, startDate: todayISO(), endDate: todayISO(), page: 1 }))}
+            >
+              Hoje
+            </Button>
+            <Button variant="secondary" onClick={loadHistory}>
+              <RefreshCw size={14} /> Atualizar
+            </Button>
+          </div>
         </header>
 
         {/* Filtros */}

@@ -164,24 +164,32 @@ export async function GET(req: Request) {
 
       // Tabela
       const tableTop = cardY + cardH + 10;
-      const colX = [margin, margin + 80, margin + 200, margin + 360, margin + 470, margin + 580, margin + 690, margin + 800];
+      function truncateCol(s: string, n: number) {
+        const v = String(s ?? '');
+        return v.length > n ? v.slice(0, n - 2) + '…' : v;
+      }
+
+      const colX = [margin, margin + 75, margin + 175, margin + 335, margin + 445, margin + 555, margin + 665, margin + 800];
       const headers = ['Data', 'Produto', 'Fornecedor', 'Recebido', 'Produzido', 'Quebra', 'Falta'];
 
       function drawTableHeader(yPos: number) {
-        doc.rect(margin, yPos - 4, w - margin * 2, 20).fill('#15803d');
-        doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10);
+        doc.rect(margin, yPos - 4, w - margin * 2, 18).fill('#15803d');
+        doc.fillColor('#fff').font('Helvetica-Bold').fontSize(9);
         headers.forEach((h, i) => {
           const align = i >= 3 ? 'right' : 'left';
-          doc.text(h, colX[i] + 4, yPos + 3, { width: (colX[i + 1] ?? w - margin) - colX[i] - 8, align });
+          doc.text(h, colX[i] + 4, yPos + 2, { width: (colX[i + 1] ?? w - margin) - colX[i] - 8, align });
         });
-        return yPos + 22;
+        return yPos + 20;
       }
 
-      doc.font('Helvetica').fillColor('#0f172a').fontSize(10);
+      doc.font('Helvetica').fillColor('#0f172a').fontSize(9);
       let y = drawTableHeader(tableTop);
-      const lineH = 18;
+      const lineH = 16;
 
-      const truncate = (s: string, n: number) => (s.length > n ? s.substring(0, n - 1) + '…' : s);
+      const ellipsis = (s: string, n: number) => {
+        const v = String(s ?? '');
+        return v.length > n ? v.slice(0, n - 2) + '…' : v;
+      };
 
       items.forEach((it, idx) => {
         if (y > h - 70) {
@@ -195,14 +203,14 @@ export async function GET(req: Request) {
         }
         const row = [
           dateBR((it.launch as any)?.referenceDate),
-          truncate(it.productName, 28),
-          truncate(it.supplierName, 28),
+          ellipsis(it.productName, 28),
+          ellipsis(it.supplierName, 28),
           fmtInt(it.received),
           fmtInt(it.produced),
           fmtInt(it.broken),
           fmtInt(it.missing),
         ];
-        doc.fillColor('#0f172a').font('Helvetica').fontSize(10);
+        doc.fillColor('#0f172a').font('Helvetica').fontSize(9);
         row.forEach((c, i) => {
           const wcol = (colX[i + 1] ?? w - margin) - colX[i] - 8;
           const align = i >= 3 ? 'right' : 'left';
@@ -213,10 +221,10 @@ export async function GET(req: Request) {
 
       // Total
       const totY = Math.min(y + 6, h - 60);
-      doc.rect(margin, totY, w - margin * 2, 26).fill('#0f766e');
-      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10);
-      doc.text('TOTAIS', margin + 8, totY + 8);
-      doc.font('Helvetica').fontSize(9);
+      doc.rect(margin, totY, w - margin * 2, 22).fill('#0f766e');
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(9);
+      doc.text('TOTAIS', margin + 8, totY + 6);
+      doc.font('Helvetica').fontSize(8);
       const labels = [
         `Recebido: ${fmtInt(totals.received)} cx`,
         `Produzido: ${fmtInt(totals.produced)} cx`,
@@ -225,7 +233,7 @@ export async function GET(req: Request) {
       ];
       const wT = (w - margin * 2 - 100) / 4;
       labels.forEach((t, i) => {
-        doc.text(t, margin + 100 + i * wT, totY + 8, { width: wT - 8 });
+        doc.text(t, margin + 100 + i * wT, totY + 6, { width: wT - 8 });
       });
 
       // Footer com paginação
