@@ -88,14 +88,29 @@ export const POST = handler(async (req) => {
   }
 
   // Validar duplicidade (data + produto + fornecedor)
+  const keys = new Map<string, string>();
+  for (const i of payload.items) {
+    const k = `${i.productId}_${i.supplierId}`;
+    keys.set(k, k);
+  }
+  if (keys.size !== payload.items.length) {
+    throw new HttpError(409, 'DUPLICADO_FORMULARIO', 'O formulário tem linhas duplicadas (mesmo produto + fornecedor).');
+  }
+
   const existing = await prisma.launchItem.findMany({
     where: {
       launch: { referenceDate: refDate },
-      OR: payload.items.map((i) => ({ productId: i.productId, supplierId: i.supplierId })),
+      productId: { in: payload.items.map((i) => i.productId) },
+      supplierId: { in: payload.items.map((i) => i.supplierId) },
     },
   });
-  if (existing.length) {
-    throw new HttpError(409, 'DUPLICADO', `Já existe lançamento nesta data para ${existing.length} combinação(ões).`);
+  const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
+  const clashes: string[] = [];
+  for (const k of keys.keys()) {
+    if (have.has(k)) clashes.push(k);
+  }
+  if (clashes.length) {
+    throw new HttpError(409, 'DUPLICADO', `Já existe lançamento nesta data para ${clashes.length} combinação(ões).`);
   }
 
   // Criar transação
