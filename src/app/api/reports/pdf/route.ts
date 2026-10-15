@@ -69,6 +69,8 @@ export async function GET(req: Request) {
   if (supplierId) where.supplierId = supplierId;
   if (entity === 'BREAK') where.broken = { gt: 0 };
   if (entity === 'MISSING') where.missing = { gt: 0 };
+  // PDF considera apenas lançamentos confirmados (previsões ficam de fora).
+  where.launch = { ...(where.launch ?? {}), status: 'CONFIRMADO' };
 
   const items = await prisma.launchItem.findMany({
     where,

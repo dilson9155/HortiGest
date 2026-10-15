@@ -9,11 +9,12 @@ import { api, errorMessage } from '../lib/api';
 import { brNum, calcMissing, isoDate, todayISO } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
-import { SectionCard, NumberInput, Input, Button, Spinner, ConfirmDialog, Badge } from '../components/UI';
+import { SectionCard, NumberInput, Input, Select, Button, Spinner, ConfirmDialog, Badge } from '../components/UI';
 import SearchSelect from '../components/SearchSelect';
 
 type Product = { id: string; name: string; defaultBoxKg: number; active: boolean };
 type Supplier = { id: string; name: string; active: boolean };
+type LaunchStatus = 'PREVISTO' | 'CONFIRMADO';
 
 type Row = {
   _key: string;
@@ -37,6 +38,7 @@ export default function LaunchesPage() {
   const canDelete = can('launches', 'delete');
 
   const [date, setDate] = useState(todayISO());
+  const [status, setStatus] = useState<LaunchStatus>('CONFIRMADO');
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,6 +49,7 @@ export default function LaunchesPage() {
   const [filters, setFilters] = useState({
     startDate: todayISO(),
     endDate: todayISO(),
+    status: '',
     q: '',
     page: 1,
     pageSize: 50,
@@ -71,6 +74,7 @@ export default function LaunchesPage() {
     const q = new URLSearchParams();
     if (filters.startDate) q.set('startDate', filters.startDate);
     if (filters.endDate) q.set('endDate', filters.endDate);
+    if (filters.status) q.set('status', filters.status);
     if (filters.q) q.set('q', filters.q);
     q.set('page', String(filters.page));
     q.set('pageSize', String(filters.pageSize));
@@ -168,6 +172,7 @@ export default function LaunchesPage() {
     setLoading(true);
     const payload = {
       referenceDate: date,
+      status,
       notes: notes || null,
       items: valid.map((r) => ({
         productId: r.productId,
@@ -184,9 +189,11 @@ export default function LaunchesPage() {
     setLoading(false);
 
     if (r.ok) {
-      toast('success', isEditing ? 'Lançamento atualizado com sucesso.' : `${valid.length} produto(s) lançado(s).`);
+      const label = status === 'PREVISTO' ? 'Previsão de chegada' : 'Lançamento';
+      toast('success', isEditing ? `${label} atualizado(a) com sucesso.` : `${label} salvo(a) com ${valid.length} produto(s).`);
       setRows([newRow()]);
       setNotes('');
+      setStatus('CONFIRMADO');
       setEditingLaunchId(null);
       loadHistory();
     } else {
@@ -206,6 +213,7 @@ export default function LaunchesPage() {
   function doClear() {
     setRows([newRow()]);
     setNotes('');
+    setStatus('CONFIRMADO');
     setEditingLaunchId(null);
     setConfirmClear(false);
   }
@@ -213,6 +221,7 @@ export default function LaunchesPage() {
   function loadLaunchIntoForm(launch: any) {
     setEditingLaunchId(launch.id);
     setDate(isoDate(launch.referenceDate));
+    setStatus(launch.status === 'PREVISTO' ? 'PREVISTO' : 'CONFIRMADO');
     setNotes(launch.notes ?? '');
     setRows(
       launch.items.map((it: any) => ({
@@ -280,12 +289,16 @@ export default function LaunchesPage() {
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {editingLaunchId ? 'Editando lançamento' : 'Novo lançamento diário'}
+                {editingLaunchId
+                  ? status === 'PREVISTO' ? 'Editando previsão de chegada' : 'Editando lançamento'
+                  : status === 'PREVISTO' ? 'Nova previsão de chegada' : 'Novo lançamento diário'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500">
                 {editingLaunchId
-                  ? 'Altere os itens e quantidades e clique em "Salvar alterações".'
-                  : 'Adicione produtos informando recebido, produzido e quebra. A falta é calculada automaticamente.'}
+                  ? 'Altere os itens, quantidades e a situação e clique em "Salvar alterações".'
+                  : status === 'PREVISTO'
+                    ? 'Pré-cadastre a chegada: escolha produtos e fornecedores, sem precisar informar quantidades.'
+                    : 'Adicione produtos informando recebido, produzido e quebra. A falta é calculada automaticamente.'}
               </p>
             </div>
           </div>
@@ -300,20 +313,31 @@ export default function LaunchesPage() {
             </Button>
             <Button onClick={handleSave} disabled={!(editingLaunchId ? canEdit : canCreate) || loading} className="!h-10 !px-5">
               {loading ? <Spinner /> : <Send size={16} />}
-              {editingLaunchId ? 'Salvar alterações' : 'Salvar lançamento'}
+              {editingLaunchId
+                ? 'Salvar alterações'
+                : status === 'PREVISTO' ? 'Salvar previsão' : 'Salvar lançamento'}
             </Button>
           </div>
         </header>
 
-        {/* Cabeçalho: Data + Observações + Permissão */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Cabeçalho: Data + Situação + Observações + Permissão */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Input
             type="date"
-            label="Data do lançamento"
+            label={status === 'PREVISTO' ? 'Data prevista de chegada' : 'Data do lançamento'}
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="!h-11"
           />
+          <Select
+            label="Situação"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as LaunchStatus)}
+            className="!h-11"
+          >
+            <option value="CONFIRMADO">Lançado (mercadoria recebida)</option>
+            <option value="PREVISTO">Previsão de chegada (pré-cadastro)</option>
+          </Select>
           <Input
             label="Observações"
             value={notes}
@@ -327,6 +351,18 @@ export default function LaunchesPage() {
             )}
           </div>
         </div>
+
+        {/* Aviso de pré-cadastro */}
+        {status === 'PREVISTO' && (
+          <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <b>Pré-cadastro (previsão de chegada).</b> Informe a data prevista e os produtos/fornecedores esperados.
+              As quantidades podem ficar em branco — preencha quando a mercadoria chegar e, depois, altere a
+              situação para <b>Lançado</b>.
+            </div>
+          </div>
+        )}
 
         {/* Tabela desktop */}
         <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
@@ -510,7 +546,19 @@ export default function LaunchesPage() {
             <label className="block text-xs font-semibold text-slate-600 mb-1">Até</label>
             <input type="date" className="input !h-11" value={filters.endDate} onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value, page: 1 }))} />
           </div>
-          <div className="sm:col-span-6">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Situação</label>
+            <select
+              className="input !h-11"
+              value={filters.status}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value, page: 1 }))}
+            >
+              <option value="">Todas</option>
+              <option value="PREVISTO">Previsões</option>
+              <option value="CONFIRMADO">Lançados</option>
+            </select>
+          </div>
+          <div className="sm:col-span-4">
             <label className="block text-xs font-semibold text-slate-600 mb-1">Produto ou fornecedor</label>
             <div className="relative">
               <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -545,7 +593,8 @@ export default function LaunchesPage() {
                 return (
                   <tr key={l.id} className="border-b border-slate-100 hover:bg-brand-50/40">
                     <td className="py-3 px-3 font-semibold text-slate-800">
-                      {isoDate(l.referenceDate).split('-').reverse().join('/')}
+                      <div>{isoDate(l.referenceDate).split('-').reverse().join('/')}</div>
+                      {l.status === 'PREVISTO' && <div className="mt-1"><Badge tone="amber">Previsão</Badge></div>}
                     </td>
                     <td className="py-3 px-3">
                       <Badge tone="slate">{l.items.length}</Badge>
@@ -593,8 +642,9 @@ export default function LaunchesPage() {
               <div key={l.id} className="rounded-xl border-2 border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="font-bold text-slate-800">
+                    <div className="font-bold text-slate-800 flex items-center gap-2">
                       {isoDate(l.referenceDate).split('-').reverse().join('/')}
+                      {l.status === 'PREVISTO' && <Badge tone="amber">Previsão</Badge>}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       {l.user?.name ?? '—'} · {l.items.length} item(ns)

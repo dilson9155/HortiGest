@@ -15,7 +15,7 @@ export const GET = handler(async (req) => {
   const productId = url.searchParams.get('productId');
   const supplierId = url.searchParams.get('supplierId');
 
-  const launchWhere: any = {};
+  const launchWhere: any = { status: 'CONFIRMADO' };
   if (startDate || endDate) {
     launchWhere.referenceDate = {};
     if (startDate) {

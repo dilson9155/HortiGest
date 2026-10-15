@@ -29,6 +29,14 @@ enum RoleKind {
   OPERADOR
 }
 
+// Situação de um lançamento:
+//  PREVISTO   = pré-cadastro (previsão de chegada), ainda sem quantidades
+//  CONFIRMADO = lançamento efetivado (mercadoria recebida/conferida)
+enum LaunchStatus {
+  PREVISTO
+  CONFIRMADO
+}
+
 model Role {
   id          String   @id @default(cuid())
   kind        RoleKind @unique
@@ -122,6 +130,7 @@ model Product {
 model Launch {
   id          String       @id @default(cuid())
   referenceDate DateTime   @db.Date          // Data do lançamento (dia)
+  status      LaunchStatus @default(CONFIRMADO)
   notes        String?
   userId       String
   user         User         @relation(fields: [userId], references: [id])
@@ -131,6 +140,7 @@ model Launch {
   items        LaunchItem[]
 
   @@index([referenceDate])
+  @@index([status])
   @@index([userId])
   @@map("launches")
 }

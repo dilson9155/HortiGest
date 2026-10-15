@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 
 const launchSchema = z.object({
   referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use AAAA-MM-DD).'),
+  status: z.enum(['PREVISTO', 'CONFIRMADO']).optional().default('CONFIRMADO'),
   notes: z.string().max(500).optional().nullable(),
   items: z
     .array(
@@ -61,37 +62,45 @@ export const PUT = handler(async (req, ctx) => {
   }
 
   // Duplicidade (data + produto + fornecedor), ignorando os itens do próprio lançamento.
-  const keys = new Map<string, string>();
-  for (const i of payload.items) {
-    const k = `${i.productId}_${i.supplierId}`;
-    keys.set(k, k);
-  }
-  if (keys.size !== payload.items.length) {
-    throw new HttpError(409, 'DUPLICADO_FORMULARIO', 'O formulário tem linhas duplicadas (mesmo produto + fornecedor).');
-  }
+  // Só vale para CONFIRMADO — "previsões" (PREVISTO) não bloqueiam.
+  if (payload.status === 'CONFIRMADO') {
+    const keys = new Map<string, string>();
+    for (const i of payload.items) {
+      const k = `${i.productId}_${i.supplierId}`;
+      keys.set(k, k);
+    }
+    if (keys.size !== payload.items.length) {
+      throw new HttpError(409, 'DUPLICADO_FORMULARIO', 'O formulário tem linhas duplicadas (mesmo produto + fornecedor).');
+    }
 
-  const existing = await prisma.launchItem.findMany({
-    where: {
-      launchId: { not: id },
-      launch: { referenceDate: refDate },
-      productId: { in: payload.items.map((i) => i.productId) },
-      supplierId: { in: payload.items.map((i) => i.supplierId) },
-    },
-  });
-  const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
-  const clashes: string[] = [];
-  for (const k of keys.keys()) {
-    if (have.has(k)) clashes.push(k);
-  }
-  if (clashes.length) {
-    throw new HttpError(409, 'DUPLICADO', `Já existe lançamento nesta data para ${clashes.length} combinação(ões).`);
+    const existing = await prisma.launchItem.findMany({
+      where: {
+        launchId: { not: id },
+        launch: { referenceDate: refDate, status: 'CONFIRMADO' },
+        productId: { in: payload.items.map((i) => i.productId) },
+        supplierId: { in: payload.items.map((i) => i.supplierId) },
+      },
+    });
+    const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
+    const clashes: string[] = [];
+    for (const k of keys.keys()) {
+      if (have.has(k)) clashes.push(k);
+    }
+    if (clashes.length) {
+      throw new HttpError(
+        409,
+        'DUPLICADO',
+        `Outro lançamento nesta data já usa ${clashes.length} combinação(ões) de mercadoria + fornecedor. ` +
+          `Ajuste a data ou os itens para continuar.`,
+      );
+    }
   }
 
   const updated = await prisma.$transaction(async (tx) => {
     await tx.launchItem.deleteMany({ where: { launchId: id } });
     await tx.launch.update({
       where: { id },
-      data: { referenceDate: refDate, notes: payload.notes ?? null },
+      data: { referenceDate: refDate, status: payload.status, notes: payload.notes ?? null },
     });
     for (const it of payload.items) {
       const product = await tx.product.findUnique({ where: { id: it.productId } });
@@ -127,7 +136,7 @@ export const PUT = handler(async (req, ctx) => {
       entity: 'launch',
       entityId: id,
       operation: 'UPDATE',
-      description: `Lançamento de ${payload.referenceDate} atualizado (${payload.items.length} item(ns)).`,
+      description: `${payload.status === 'PREVISTO' ? 'Previsão de chegada' : 'Lançamento'} de ${payload.referenceDate} atualizado(a) (${payload.items.length} item(ns)).`,
     },
   });
 

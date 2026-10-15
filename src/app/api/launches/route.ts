@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 
 const launchSchema = z.object({
   referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use AAAA-MM-DD).'),
+  status: z.enum(['PREVISTO', 'CONFIRMADO']).optional().default('CONFIRMADO'),
   notes: z.string().max(500).optional().nullable(),
   items: z
     .array(
@@ -32,6 +33,7 @@ export const GET = handler(async (req) => {
   const startDate = url.searchParams.get('startDate');
   const endDate = url.searchParams.get('endDate');
   const userId = url.searchParams.get('userId') ?? undefined;
+  const status = url.searchParams.get('status');
   const q = url.searchParams.get('q') ?? '';
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
   const pageSize = Math.min(500, Math.max(5, Number(url.searchParams.get('pageSize') ?? 10)));
@@ -45,6 +47,7 @@ export const GET = handler(async (req) => {
     if (de) where.referenceDate.lte = de;
   }
   if (userId) where.userId = userId;
+  if (status === 'PREVISTO' || status === 'CONFIRMADO') where.status = status;
   if (q) {
     where.OR = [
       { notes: { contains: q, mode: 'insensitive' } },
@@ -87,30 +90,38 @@ export const POST = handler(async (req) => {
     }
   }
 
-  // Validar duplicidade (data + produto + fornecedor)
-  const keys = new Map<string, string>();
-  for (const i of payload.items) {
-    const k = `${i.productId}_${i.supplierId}`;
-    keys.set(k, k);
-  }
-  if (keys.size !== payload.items.length) {
-    throw new HttpError(409, 'DUPLICADO_FORMULARIO', 'O formulário tem linhas duplicadas (mesmo produto + fornecedor).');
-  }
+  // Duplicidade (data + produto + fornecedor).
+  // Só vale para lançamentos CONFIRMADOS — "previsões" (PREVISTO) não bloqueiam.
+  if (payload.status === 'CONFIRMADO') {
+    const keys = new Map<string, string>();
+    for (const i of payload.items) {
+      const k = `${i.productId}_${i.supplierId}`;
+      keys.set(k, k);
+    }
+    if (keys.size !== payload.items.length) {
+      throw new HttpError(409, 'DUPLICADO_FORMULARIO', 'O formulário tem linhas duplicadas (mesmo produto + fornecedor).');
+    }
 
-  const existing = await prisma.launchItem.findMany({
-    where: {
-      launch: { referenceDate: refDate },
-      productId: { in: payload.items.map((i) => i.productId) },
-      supplierId: { in: payload.items.map((i) => i.supplierId) },
-    },
-  });
-  const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
-  const clashes: string[] = [];
-  for (const k of keys.keys()) {
-    if (have.has(k)) clashes.push(k);
-  }
-  if (clashes.length) {
-    throw new HttpError(409, 'DUPLICADO', `Já existe lançamento nesta data para ${clashes.length} combinação(ões).`);
+    const existing = await prisma.launchItem.findMany({
+      where: {
+        launch: { referenceDate: refDate, status: 'CONFIRMADO' },
+        productId: { in: payload.items.map((i) => i.productId) },
+        supplierId: { in: payload.items.map((i) => i.supplierId) },
+      },
+    });
+    const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
+    const clashes: string[] = [];
+    for (const k of keys.keys()) {
+      if (have.has(k)) clashes.push(k);
+    }
+    if (clashes.length) {
+      throw new HttpError(
+        409,
+        'DUPLICADO',
+        `Já existe um lançamento nesta data para ${clashes.length} combinação(ões) de mercadoria + fornecedor. ` +
+          `Para corrigir um lançamento existente, use o botão de editar (lápis) no histórico em vez de criar um novo.`,
+      );
+    }
   }
 
   // Criar transação
@@ -118,6 +129,7 @@ export const POST = handler(async (req) => {
     const launch = await tx.launch.create({
       data: {
         referenceDate: refDate,
+        status: payload.status,
         notes: payload.notes ?? null,
         userId: session.id,
       },
@@ -156,7 +168,7 @@ export const POST = handler(async (req) => {
       entity: 'launch',
       entityId: (created as any).id,
       operation: 'CREATE',
-      description: `Lançamento criado para ${payload.referenceDate} com ${(created as any).items.length} item(ns).`,
+      description: `${payload.status === 'PREVISTO' ? 'Previsão de chegada' : 'Lançamento'} criado(a) para ${payload.referenceDate} com ${(created as any).items.length} item(ns).`,
     },
   });
 

@@ -8,10 +8,14 @@ import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { useToast } from '../hooks/useToast';
 import { SectionCard, Button, Input, Spinner } from '../components/UI';
+import ResetSystemCard from '../components/ResetSystemCard';
+import { useAuth } from '../contexts/AuthContext';
 import { useBranding } from '../contexts/BrandingContext';
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role?.kind === 'ADMIN';
   const branding = useBranding();
   const [data, setData] = useState<Record<string, any>>({});
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -244,6 +248,9 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* ============== ZONA DE PERIGO (somente ADMIN) ============== */}
+      {isAdmin && <ResetSystemCard />}
     </div>
   );
 }
