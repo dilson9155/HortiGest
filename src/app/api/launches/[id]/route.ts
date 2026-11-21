@@ -39,7 +39,7 @@ export const PUT = handler(async (req, ctx) => {
   await assertNoDuplicateReceived(refDate, received, id);
 
   const updated = await prisma.$transaction(async (tx) => {
-    const refs = await resolveReceivingRefs(tx, payload);
+    const refs = await resolveReceivingRefs(tx, payload, items);
     await tx.launchItem.deleteMany({ where: { launchId: id } });
     await tx.launch.update({
       where: { id },
@@ -47,11 +47,11 @@ export const PUT = handler(async (req, ctx) => {
         referenceDate: refDate,
         status: launchStatusFor(items),
         notes: payload.notes ?? null,
-        dockId: payload.dockId ?? null,
+        dockId: refs.dockId,
         dockName: refs.dockName,
-        conferenteId: payload.conferenteId ?? null,
+        conferenteId: refs.conferenteId,
         conferenteName: refs.conferenteName,
-        compradorId: payload.compradorId ?? null,
+        compradorId: refs.compradorId,
         compradorName: refs.compradorName,
       },
     });

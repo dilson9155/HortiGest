@@ -33,6 +33,7 @@ type ReceivedItem = {
   received: string;
   rendimento: string;
   delta: number;
+  forecastTime: string | null;
   entryTime: string | null;
   notes: string | null;
   dockName: string;
@@ -295,7 +296,7 @@ export default function ReceivedPage() {
                 <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-brand-600">
                   <tr>
                     <th className="py-3 px-3">Data</th>
-                    <th className="py-3 px-3">Horário</th>
+                    <th className="py-3 px-3">Horários prev./lanç.</th>
                     <th className="py-3 px-3">Produto</th>
                     <th className="py-3 px-3">Fornecedor</th>
                     <th className="py-3 px-3 text-right">Previsão</th>
@@ -313,7 +314,10 @@ export default function ReceivedPage() {
                   {items.map((it, idx) => (
                     <tr key={it.id} className={clsx('border-b border-slate-100', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-emerald-50')}>
                       <td className="py-3 px-3 font-semibold whitespace-nowrap">{dateBR(it.referenceDate)}</td>
-                      <td className="py-3 px-3 font-bold text-brand-700 whitespace-nowrap"><span className="inline-flex items-center gap-1"><Clock3 size={15} />{it.entryTime ?? '—'}</span></td>
+                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                        <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
+                        <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700"><Clock3 size={12} className="inline" /> {it.entryTime ?? '—'}</b></div>
+                      </td>
                       <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[200px] leading-snug" title={it.productName}>{it.productName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[180px] leading-snug" title={it.supplierName}>{it.supplierName}</td>
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
@@ -323,7 +327,7 @@ export default function ReceivedPage() {
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.conferenteName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.compradorName}</td>
-                      <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                       <td className="py-3 px-3 text-right">
                         {can('launches', 'edit') && (
                           <Link href={`/lancamentos?edit=${it.launchId}`} className="inline-flex p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar lançamento">
@@ -356,7 +360,12 @@ export default function ReceivedPage() {
                     <div>
                       <div className="font-bold text-base text-slate-800 break-words leading-snug" title={it.productName}>{it.productName}</div>
                       <div className="text-xs text-slate-600 break-words">
-                        {it.supplierName} · {dateBR(it.referenceDate)} · <b>{it.entryTime ?? '—'}</b>
+                        {it.supplierName} · {dateBR(it.referenceDate)}
+                      </div>
+                      <div className="text-xs break-words">
+                        <span className="text-slate-500">Previsto:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b>
+                        {' · '}
+                        <span className="text-slate-500">Lançado:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b>
                       </div>
                     </div>
                     {can('launches', 'edit') && (

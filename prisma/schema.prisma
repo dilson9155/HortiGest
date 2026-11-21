@@ -238,6 +238,15 @@ model LaunchItem {
   received     Decimal  @default(0) @db.Decimal(14, 3)
   // Rendimento informado à mão (base de pagamento ao fornecedor / estoque real).
   rendimento   Decimal  @default(0) @db.Decimal(14, 3)
+  // Responsáveis POR ITEM — vários lançamentos podem acontecer ao mesmo tempo.
+  compradorId    String?
+  compradorName  String?
+  conferenteId   String?
+  conferenteName String?
+  dockId         String?
+  dockName       String?
+  // Horário previsto pelo comprador (HH:mm) e horário em que o conferente lançou (HH:mm).
+  forecastTime   String?
   // Horário de entrada de cada produto (HH:mm). Obrigatório ao receber.
   entryTime    String?
   // Observações do conferente sobre o produto recebido.
@@ -258,6 +267,10 @@ model LaunchItem {
   @@index([launchId, productId, supplierId])
   @@index([status])
   @@index([entryTime])
+  @@index([forecastTime])
+  @@index([compradorId])
+  @@index([conferenteId])
+  @@index([dockId])
   @@map("launch_items")
 }
 

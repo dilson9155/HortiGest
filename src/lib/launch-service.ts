@@ -24,6 +24,14 @@ export const launchSchema = z.object({
         forecast: z.number().nonnegative().default(0),
         received: z.number().nonnegative().default(0),
         rendimento: z.number().nonnegative().default(0),
+        // Detalhes por item — cada produto pode ter um comprador/conferente diferente.
+        compradorId: z.string().min(1).optional().nullable(),
+        compradorName: z.string().trim().min(1, 'Informe o comprador de cada item.').max(120),
+        conferenteId: z.string().min(1).optional().nullable(),
+        conferenteName: z.string().trim().max(120).optional().nullable(),
+        dockId: z.string().min(1, 'Informe a doca de cada item.'),
+        // Horário previsto pelo comprador e horário do lançamento do conferente.
+        forecastTime: z.string().regex(timeRegex, 'Horário previsto inválido (use HH:mm).'),
         entryTime: z.string().regex(timeRegex, 'Horário inválido (use HH:mm).').optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
         status: z.enum(['PREVISTO', 'RECEBIDO']).optional(),
@@ -41,6 +49,12 @@ export type NormalizedItem = {
   forecast: number;
   received: number;
   rendimento: number;
+  compradorId: string | null;
+  compradorName: string;
+  conferenteId: string | null;
+  conferenteName: string | null;
+  dockId: string;
+  forecastTime: string;
   entryTime: string | null;
   notes: string | null;
   itemStatus: ItemStatus;
@@ -69,7 +83,14 @@ export function normalizeLaunch(payload: LaunchPayload) {
       throw new HttpError(
         400,
         'HORARIO_OBRIGATORIO',
-        'O horário de entrada é obrigatório para todo produto recebido.',
+        'O horário do lançamento do conferente é obrigatório para todo produto recebido.',
+      );
+    }
+    if (itemStatus === 'RECEBIDO' && !it.conferenteName?.trim()) {
+      throw new HttpError(
+        400,
+        'CONFERENTE_ITEM_OBRIGATORIO',
+        'Informe o conferente de cada produto recebido.',
       );
     }
 
@@ -79,6 +100,12 @@ export function normalizeLaunch(payload: LaunchPayload) {
       forecast: Number(it.forecast ?? 0),
       received: Number(it.received ?? 0),
       rendimento: Number(it.rendimento ?? 0),
+      compradorId: it.compradorId ?? null,
+      compradorName: it.compradorName.trim(),
+      conferenteId: it.conferenteId ?? null,
+      conferenteName: it.conferenteName?.trim() || null,
+      dockId: it.dockId,
+      forecastTime: it.forecastTime,
       entryTime: it.entryTime ?? null,
       notes: it.notes ?? null,
       itemStatus,
@@ -130,32 +157,50 @@ export async function assertNoDuplicateReceived(
   }
 }
 
-/** Valida doca/conferente/comprador e devolve os snapshots para histórico. */
-export async function resolveReceivingRefs(tx: any, payload: LaunchPayload) {
-  const check = async (id: string | null | undefined, model: 'dock' | 'conferente' | 'comprador', label: string) => {
-    if (!id) return null;
-    const row = await tx[model].findUnique({ where: { id } });
-    if (!row) throw new HttpError(400, 'CADASTRO_INVALIDO', `${label} não encontrado.`);
-    if (!row.active) throw new HttpError(400, 'CADASTRO_INATIVO', `${label} inativo.`);
-    return row.name as string;
-  };
+/** Valida um cadastro e devolve o nome gravado (para snapshot histórico). */
+async function checkRef(tx: any, id: string | null | undefined, model: 'dock' | 'conferente' | 'comprador', label: string) {
+  if (!id) return null;
+  const row = await tx[model].findUnique({ where: { id } });
+  if (!row) throw new HttpError(400, 'CADASTRO_INVALIDO', `${label} não encontrado.`);
+  if (!row.active) throw new HttpError(400, 'CADASTRO_INATIVO', `${label} inativo.`);
+  return row.name as string;
+}
 
-  const conferenteCadastrado = await check(payload.conferenteId, 'conferente', 'Conferente');
-  const compradorCadastrado = await check(payload.compradorId, 'comprador', 'Comprador');
+/** Snapshots do lançamento (compatibilidade) espelham o primeiro item. */
+export async function resolveReceivingRefs(tx: any, payload: LaunchPayload, items: NormalizedItem[]) {
+  const first = items[0];
+  const compradorId = payload.compradorId || first?.compradorId || null;
+  const conferenteId = payload.conferenteId || first?.conferenteId || null;
+  const dockId = payload.dockId || first?.dockId || null;
 
-  const conferenteName = payload.conferenteName?.trim() || conferenteCadastrado;
-  const compradorName = payload.compradorName?.trim() || compradorCadastrado;
-  if (!compradorName) {
-    throw new HttpError(400, 'COMPRADOR_OBRIGATORIO', 'Informe o nome do comprador do lançamento.');
-  }
-  if (!conferenteName) {
-    throw new HttpError(400, 'CONFERENTE_OBRIGATORIO', 'Informe o nome do conferente do lançamento.');
-  }
+  const compradorName =
+    payload.compradorName?.trim() ||
+    first?.compradorName?.trim() ||
+    (await checkRef(tx, compradorId, 'comprador', 'Comprador'));
+  const conferenteName =
+    payload.conferenteName?.trim() ||
+    first?.conferenteName?.trim() ||
+    (await checkRef(tx, conferenteId, 'conferente', 'Conferente'));
+  const dockName = (await checkRef(tx, dockId, 'dock', 'Docа')) || null;
+
+  return { compradorId, compradorName, conferenteId, conferenteName, dockId, dockName };
+}
+
+/** Valida e resolve os responsáveis/doca gravados em cada item. */
+async function resolveItemRefs(tx: any, it: NormalizedItem) {
+  const compradorCadastrado = await checkRef(tx, it.compradorId, 'comprador', 'Comprador');
+  const conferenteCadastrado = await checkRef(tx, it.conferenteId, 'conferente', 'Conferente');
+  const dockCadastrada = await checkRef(tx, it.dockId, 'dock', 'Docа');
 
   return {
-    dockName: await check(payload.dockId, 'dock', 'Docа'),
-    conferenteName,
-    compradorName,
+    compradorId: it.compradorId,
+    // Nome digitado no lançamento prevalece sobre o cadastro (decisão anterior).
+    compradorName: it.compradorName.trim() || compradorCadastrado,
+    conferenteId: it.conferenteId,
+    conferenteName: it.conferenteName?.trim() || conferenteCadastrado || null,
+    dockId: it.dockId,
+    dockName: dockCadastrada,
+    forecastTime: it.forecastTime,
   };
 }
 
@@ -166,6 +211,8 @@ export async function writeItems(tx: any, launchId: string, items: NormalizedIte
     const supplier = await tx.supplier.findUnique({ where: { id: it.supplierId } });
     if (!product || !product.active) throw new HttpError(400, 'PRODUTO_INATIVO', 'Produto inativo.');
     if (!supplier || !supplier.active) throw new HttpError(400, 'FORNECEDOR_INATIVO', 'Fornecedor inativo.');
+
+    const refs = await resolveItemRefs(tx, it);
 
     await tx.launchItem.create({
       data: {
@@ -179,6 +226,7 @@ export async function writeItems(tx: any, launchId: string, items: NormalizedIte
         forecast: it.forecast,
         received: it.received,
         rendimento: it.rendimento,
+        ...refs,
         entryTime: it.entryTime,
         notes: it.notes,
         // Colunas legadas: mantidas zeradas para não quebrar dados antigos.

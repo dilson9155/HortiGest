@@ -48,14 +48,18 @@ export const GET = handler(async (req) => {
     if (endDate) where.referenceDate.lte = new Date(`${endDate}T00:00:00.000Z`);
   }
   if (userId) where.userId = userId;
-  if (dockId) where.dockId = dockId;
-  if (conferenteId) where.conferenteId = conferenteId;
-  if (compradorId) where.compradorId = compradorId;
 
   const itemWhere: any = {};
   if (itemStatus) itemWhere.status = itemStatus;
   if (productId) itemWhere.productId = productId;
   if (supplierId) itemWhere.supplierId = supplierId;
+  // Filtros por responsável/doca usam o dado gravado no ITEM, com fallback
+  // para o lançamento (histórico migrado).
+  const itemAnds: any[] = [];
+  if (dockId) itemAnds.push({ OR: [{ dockId }, { launch: { dockId } }] });
+  if (conferenteId) itemAnds.push({ OR: [{ conferenteId }, { launch: { conferenteId } }] });
+  if (compradorId) itemAnds.push({ OR: [{ compradorId }, { launch: { compradorId } }] });
+  if (itemAnds.length) itemWhere.AND = itemAnds;
   if (Object.keys(itemWhere).length) where.items = { some: itemWhere };
 
   if (q) {
@@ -65,6 +69,9 @@ export const GET = handler(async (req) => {
       { items: { some: { productName: { contains: q, mode: 'insensitive' } } } },
       { items: { some: { supplierName: { contains: q, mode: 'insensitive' } } } },
       { items: { some: { notes: { contains: q, mode: 'insensitive' } } } },
+      { items: { some: { compradorName: { contains: q, mode: 'insensitive' } } } },
+      { items: { some: { conferenteName: { contains: q, mode: 'insensitive' } } } },
+      { items: { some: { dockName: { contains: q, mode: 'insensitive' } } } },
     ];
   }
 
@@ -96,17 +103,17 @@ export const POST = handler(async (req) => {
   await assertNoDuplicateReceived(refDate, received);
 
   const created = await prisma.$transaction(async (tx) => {
-    const refs = await resolveReceivingRefs(tx, payload);
+    const refs = await resolveReceivingRefs(tx, payload, items);
     const launch = await tx.launch.create({
       data: {
         referenceDate: refDate,
         status: launchStatusFor(items),
         notes: payload.notes ?? null,
-        dockId: payload.dockId ?? null,
+        dockId: refs.dockId,
         dockName: refs.dockName,
-        conferenteId: payload.conferenteId ?? null,
+        conferenteId: refs.conferenteId,
         conferenteName: refs.conferenteName,
-        compradorId: payload.compradorId ?? null,
+        compradorId: refs.compradorId,
         compradorName: refs.compradorName,
         userId: session.id,
       },

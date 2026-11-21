@@ -17,6 +17,22 @@ async function main() {
        )
   `;
   console.log(`[BACKFILL] ${afetados} item(ns) antigo(s) marcado(s) como recebido(s).`);
+
+  // Copia os responsáveis/doca do lançamento para os itens que ainda não têm
+  // esses detalhes gravados por item (histórico anterior a esta versão).
+  const copiados = await prisma.$executeRaw`
+    UPDATE launch_items li
+       SET "compradorId" = l."compradorId",
+           "compradorName" = COALESCE(li."compradorName", l."compradorName"),
+           "conferenteId" = l."conferenteId",
+           "conferenteName" = COALESCE(li."conferenteName", l."conferenteName"),
+           "dockId" = l."dockId",
+           "dockName" = COALESCE(li."dockName", l."dockName")
+      FROM launches l
+     WHERE li."launchId" = l.id
+       AND li."compradorName" IS NULL
+  `;
+  console.log(`[BACKFILL] ${copiados} item(ns) com responsáveis/doca copiados do lançamento.`);
 }
 
 main()

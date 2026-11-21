@@ -42,18 +42,10 @@ export const GET = handler(async (req) => {
     where.launch = where.launch ?? {};
     where.launch.userId = userId;
   }
-  if (dockId) {
-    where.launch = where.launch ?? {};
-    where.launch.dockId = dockId;
-  }
-  if (conferenteId) {
-    where.launch = where.launch ?? {};
-    where.launch.conferenteId = conferenteId;
-  }
-  if (compradorId) {
-    where.launch = where.launch ?? {};
-    where.launch.compradorId = compradorId;
-  }
+  // Responsáveis/doca são gravados por item; mantemos fallback do lançamento.
+  if (dockId) where.AND = [...(where.AND ?? []), { OR: [{ dockId }, { launch: { dockId } }] }];
+  if (conferenteId) where.AND = [...(where.AND ?? []), { OR: [{ conferenteId }, { launch: { conferenteId } }] }];
+  if (compradorId) where.AND = [...(where.AND ?? []), { OR: [{ compradorId }, { launch: { compradorId } }] }];
   if (productId) where.productId = productId;
   if (supplierId) where.supplierId = supplierId;
   if (timeFrom || timeTo) {
@@ -66,6 +58,9 @@ export const GET = handler(async (req) => {
       { productName: { contains: q, mode: 'insensitive' } },
       { supplierName: { contains: q, mode: 'insensitive' } },
       { notes: { contains: q, mode: 'insensitive' } },
+      { dockName: { contains: q, mode: 'insensitive' } },
+      { conferenteName: { contains: q, mode: 'insensitive' } },
+      { compradorName: { contains: q, mode: 'insensitive' } },
       { launch: { dockName: { contains: q, mode: 'insensitive' } } },
       { launch: { conferenteName: { contains: q, mode: 'insensitive' } } },
       { launch: { compradorName: { contains: q, mode: 'insensitive' } } },
@@ -100,11 +95,13 @@ export const GET = handler(async (req) => {
       received: String(it.received),
       rendimento: String(it.rendimento),
       delta: Number(it.forecast) - Number(it.received),
+      // Dois horários por item: previsão do comprador e lançamento do conferente.
+      forecastTime: it.forecastTime,
       entryTime: it.entryTime,
       notes: it.notes,
-      dockName: (it.launch as any).dockName ?? '—',
-      conferenteName: (it.launch as any).conferenteName ?? '—',
-      compradorName: (it.launch as any).compradorName ?? '—',
+      dockName: it.dockName || (it.launch as any).dockName || '—',
+      conferenteName: it.conferenteName || (it.launch as any).conferenteName || '—',
+      compradorName: it.compradorName || (it.launch as any).compradorName || '—',
       launch: {
         referenceDate: (it.launch as any).referenceDate,
         user: (it.launch as any).user,

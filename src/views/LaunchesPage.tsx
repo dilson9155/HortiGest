@@ -17,7 +17,6 @@ import {
   Pencil,
   History,
   Send,
-  Warehouse,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -38,24 +37,39 @@ type Row = {
   _key: string;
   productId: string;
   supplierId: string;
+  // Detalhes próprios de cada item lançado.
+  compradorId: string;
+  compradorName: string;
+  conferenteId: string;
+  conferenteName: string;
+  dockId: string;
+  forecastTime: string; // horário previsto pelo comprador
   forecast: number | '';
   received: number | '';
   rendimento: number | '';
-  entryTime: string;
+  entryTime: string; // horário do lançamento do conferente
   notes: string;
   status: ItemStatus;
 };
+
+type RowDefaults = Partial<Pick<Row, 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
 
 function nowHHmm() {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function newRow(): Row {
+function newRow(defaults: RowDefaults = {}): Row {
   return {
     _key: `r_${Math.random().toString(36).slice(2, 9)}`,
     productId: '',
     supplierId: '',
+    compradorId: defaults.compradorId ?? '',
+    compradorName: defaults.compradorName ?? '',
+    conferenteId: defaults.conferenteId ?? '',
+    conferenteName: defaults.conferenteName ?? '',
+    dockId: defaults.dockId ?? '',
+    forecastTime: '',
     forecast: 0,
     received: 0,
     rendimento: 0,
@@ -211,9 +225,6 @@ export default function LaunchesPage() {
     [products],
   );
   const supplierOptions = useMemo(() => toOptions(suppliers), [suppliers]);
-  const dockOptions = useMemo(() => toOptions(docks), [docks]);
-  const compradorOptions = useMemo(() => toOptions(compradores), [compradores]);
-  const conferenteOptions = useMemo(() => toOptions(conferentes), [conferentes]);
 
   function setRow(idx: number, patch: Partial<Row>) {
     setRows((arr) => arr.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -228,7 +239,25 @@ export default function LaunchesPage() {
   }
 
   function addRow() {
-    setRows((arr) => [...arr, newRow()]);
+    setRows((arr) => [
+      ...arr,
+      newRow({ dockId, compradorId, compradorName, conferenteId, conferenteName }),
+    ]);
+  }
+
+  // Aplica os padrões do topo a todas as linhas já abertas.
+  function applyDefaultsToRows() {
+    setRows((arr) =>
+      arr.map((r) => ({
+        ...r,
+        dockId: dockId || r.dockId,
+        compradorId: compradorId || r.compradorId,
+        compradorName: compradorName.trim() || r.compradorName,
+        conferenteId: conferenteId || r.conferenteId,
+        conferenteName: conferenteName.trim() || r.conferenteName,
+      })),
+    );
+    toast('success', 'Padrões aplicados às linhas. Ajuste o que for diferente em cada item.');
   }
 
   function removeRow(idx: number) {
@@ -245,26 +274,33 @@ export default function LaunchesPage() {
       toast('warning', 'Adicione ao menos um produto com fornecedor selecionado.');
       return;
     }
-    if (!compradorName.trim()) {
-      toast('warning', 'Informe o nome do comprador que informou a previsão.');
-      return;
-    }
-    if (!conferenteName.trim()) {
-      toast('warning', 'Informe o nome do conferente que recebeu a mercadoria.');
-      return;
-    }
-
     const receivedKeys = new Set<string>();
-    for (const r of valid) {
+    for (const [idx, r] of valid.entries()) {
       const nForecast = Number(r.forecast) || 0;
       const nReceived = Number(r.received) || 0;
       if (nForecast < 0 || nReceived < 0) {
         toast('error', 'Não é permitido valor negativo.');
         return;
       }
+      if (!r.compradorName.trim()) {
+        toast('warning', `Item ${idx + 1}: informe o comprador que lançou a previsão.`);
+        return;
+      }
+      if (!r.forecastTime) {
+        toast('warning', `Item ${idx + 1}: informe o horário previsto de entrega.`);
+        return;
+      }
+      if (!r.dockId) {
+        toast('warning', `Item ${idx + 1}: informe a doca prevista.`);
+        return;
+      }
       if (r.status === 'RECEBIDO') {
+        if (!r.conferenteName.trim()) {
+          toast('warning', `Item ${idx + 1}: informe o conferente que lançou o recebimento.`);
+          return;
+        }
         if (!r.entryTime) {
-          toast('error', 'Informe o horário de entrada de cada produto recebido.');
+          toast('error', `Item ${idx + 1}: informe o horário do lançamento do conferente.`);
           return;
         }
         const k = `${r.productId}_${r.supplierId}`;
@@ -277,20 +313,28 @@ export default function LaunchesPage() {
     }
 
     setLoading(true);
+    const first = valid[0];
     const payload = {
       referenceDate: date,
       notes: notes || null,
-      dockId: dockId || null,
-      compradorId: compradorId || null,
-      conferenteId: conferenteId || null,
-      compradorName: compradorName.trim() || null,
-      conferenteName: conferenteName.trim() || null,
+      // Snapshots do lançamento espelham o primeiro item (compatibilidade).
+      dockId: first?.dockId || null,
+      compradorId: first?.compradorId || null,
+      conferenteId: first?.conferenteId || null,
+      compradorName: first?.compradorName.trim() || null,
+      conferenteName: first?.conferenteName.trim() || null,
       items: valid.map((r) => ({
         productId: r.productId,
         supplierId: r.supplierId,
         forecast: Number(r.forecast) || 0,
         received: Number(r.received) || 0,
         rendimento: Number(r.rendimento) || 0,
+        compradorId: r.compradorId || null,
+        compradorName: r.compradorName.trim(),
+        conferenteId: r.conferenteId || null,
+        conferenteName: r.conferenteName.trim() || null,
+        dockId: r.dockId,
+        forecastTime: r.forecastTime,
         entryTime: r.status === 'RECEBIDO' ? r.entryTime : null,
         notes: r.notes || null,
         status: r.status,
@@ -329,7 +373,9 @@ export default function LaunchesPage() {
   }
 
   function clearForm() {
-    const dirty = rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes) || !!compradorName.trim() || !!conferenteName.trim();
+    const dirty =
+      rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes || r.compradorName || r.conferenteName || r.forecastTime || r.entryTime || r.dockId) ||
+      !!compradorName.trim() || !!conferenteName.trim() || !!dockId;
     if (dirty) {
       setConfirmClear(true);
       return;
@@ -357,6 +403,12 @@ export default function LaunchesPage() {
         forecast: Number(it.forecast),
         received: Number(it.received),
         rendimento: Number(it.rendimento),
+        compradorId: it.compradorId ?? full.compradorId ?? '',
+        compradorName: it.compradorName ?? full.compradorName ?? full.comprador?.name ?? '',
+        conferenteId: it.conferenteId ?? full.conferenteId ?? '',
+        conferenteName: it.conferenteName ?? full.conferenteName ?? full.conferente?.name ?? '',
+        dockId: it.dockId ?? full.dockId ?? '',
+        forecastTime: it.forecastTime ?? '',
         entryTime: it.entryTime ?? '',
         notes: it.notes ?? '',
         status: it.status === 'RECEBIDO' ? ('RECEBIDO' as ItemStatus) : ('PREVISTO' as ItemStatus),
@@ -379,7 +431,7 @@ export default function LaunchesPage() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes) || !!compradorName.trim() || !!conferenteName.trim()) e.preventDefault();
+      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes || r.compradorName || r.conferenteName || r.forecastTime || r.entryTime || r.dockId) || !!compradorName.trim() || !!conferenteName.trim() || !!dockId) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
@@ -506,183 +558,146 @@ export default function LaunchesPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-          <Input type="date" label="Data" value={date} onChange={(e) => setDate(e.target.value)} className="!h-12 !text-base" />
-          <div>
-            <label className="label">Docа de recebimento</label>
-            <SearchSelect items={dockOptions} value={dockId} onChange={setDockId} icon={<Warehouse size={17} />} placeholder="Buscar docа..." emptyLabel="Nenhuma docа cadastrada" />
+        {/* Padrões compactos — preenchem novas linhas; cada item pode ser diferente. */}
+        <datalist id="hl-compradores">
+          {compradores.map((c) => <option key={c.id} value={c.name} />)}
+        </datalist>
+        <datalist id="hl-conferentes">
+          {conferentes.map((c) => <option key={c.id} value={c.name} />)}
+        </datalist>
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-36 shrink-0">
+              <Input type="date" label="Data" value={date} onChange={(e) => setDate(e.target.value)} className="!h-9 !text-sm" />
+            </div>
+            <div className="min-w-[150px] flex-1">
+              <label className="label">Comprador padrão</label>
+              <Input
+                list="hl-compradores"
+                value={compradorName}
+                onChange={(e) => { setCompradorName(e.target.value); setCompradorId(''); }}
+                placeholder="Nome do comprador"
+                className="!h-9 !text-sm"
+              />
+            </div>
+            <div className="min-w-[130px] flex-1">
+              <label className="label">Docа padrão</label>
+              <Select value={dockId} onChange={(e) => setDockId(e.target.value)} className="!h-9 !text-sm">
+                <option value="">Selecione...</option>
+                {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </Select>
+            </div>
+            <div className="min-w-[150px] flex-1">
+              <label className="label">Conferente padrão</label>
+              <Input
+                list="hl-conferentes"
+                value={conferenteName}
+                onChange={(e) => { setConferenteName(e.target.value); setConferenteId(''); }}
+                placeholder="Nome do conferente"
+                className="!h-9 !text-sm"
+              />
+            </div>
+            <div className="min-w-[160px] flex-[1.2]">
+              <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" className="!h-9 !text-sm" />
+            </div>
+            <Button variant="secondary" onClick={applyDefaultsToRows} className="!h-9 !text-sm">
+              Aplicar às linhas
+            </Button>
           </div>
-          <div className="space-y-2">
-            <label className="label">Comprador (cadastro)</label>
-            <SearchSelect
-              items={compradorOptions}
-              value={compradorId}
-              onChange={(id) => {
-                setCompradorId(id);
-                const found = compradores.find((c) => c.id === id);
-                if (found) setCompradorName(found.name);
-              }}
-              placeholder="Buscar comprador..."
-              emptyLabel="Nenhum comprador cadastrado"
-            />
-            <Input
-              label="Nome do comprador no lançamento"
-              value={compradorName}
-              onChange={(e) => {
-                setCompradorName(e.target.value);
-                setCompradorId('');
-              }}
-              placeholder="Digite o nome de quem informou a previsão"
-              className="!h-12 !text-base"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="label">Conferente (cadastro)</label>
-            <SearchSelect
-              items={conferenteOptions}
-              value={conferenteId}
-              onChange={(id) => {
-                setConferenteId(id);
-                const found = conferentes.find((c) => c.id === id);
-                if (found) setConferenteName(found.name);
-              }}
-              placeholder="Buscar conferente..."
-              emptyLabel="Nenhum conferente cadastrado"
-            />
-            <Input
-              label="Nome do conferente no lançamento"
-              value={conferenteName}
-              onChange={(e) => {
-                setConferenteName(e.target.value);
-                setConferenteId('');
-              }}
-              placeholder="Digite o nome de quem recebeu a mercadoria"
-              className="!h-12 !text-base"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional..." className="!h-12 !text-base" />
-          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Padrões para novos itens. Cada item registrado abaixo pode ter comprador, conferente, doca e horários próprios.
+          </p>
         </div>
 
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-brand-900">
           <AlertTriangle size={19} className="mt-0.5 shrink-0" />
-          <div className="text-sm sm:text-base">
-            <b>Fluxo:</b> preencha a previsão por produto. Quando a mercadoria chegar, informe a quantidade recebida,
-            o <b>rendimento</b> (informado à mão, base de pagamento do fornecedor), o <b>horário de entrada</b> e as
-            observações, e mude a situação para <b>Recebido</b>. O item sai daqui e aparece no módulo <b>Produtos recebidos</b>.
-            O delta (previsto − recebido) é calculado automaticamente.
+          <div className="text-xs sm:text-sm">
+            <b>Dois horários por item:</b> o comprador informa o <b>horário previsto de entrega</b> e a <b>docа</b>;
+            o conferente informa o <b>horário do lançamento</b>, a quantidade recebida e o <b>rendimento</b>.
+            Cada produto mantém seus próprios responsáveis, mesmo com várias pessoas lançando ao mesmo tempo.
+            O delta (previsto − recebido) é automático.
           </div>
         </div>
 
-        {/* Tabela desktop */}
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-base">
-            <thead className="text-left text-sm font-semibold text-slate-700 bg-slate-100">
-              <tr className="border-b border-slate-200">
-                <th className="py-3 px-3 min-w-[210px]">Produto</th>
-                <th className="py-3 px-3 min-w-[180px]">Fornecedor</th>
-                <th className="py-3 px-3 w-28">Previsão</th>
-                <th className="py-3 px-3 w-28">Recebido</th>
-                <th className="py-3 px-3 w-28">Rendimento</th>
-                <th className="py-3 px-3 w-28">Delta</th>
-                <th className="py-3 px-3 w-36">Situação</th>
-                <th className="py-3 px-3 w-36">Horário</th>
-                <th className="py-3 px-3 min-w-[200px]">Observações</th>
-                <th className="py-3 px-3 w-14" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, idx) => {
-                const delta = deltaOf(r.forecast, r.received);
-                return (
-                  <tr key={r._key} className="border-b border-slate-100 align-top hover:bg-slate-50/70">
-                    <td className="py-2 px-2">
-                      <SearchSelect icon={<Package size={17} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Digite o produto..." />
-                    </td>
-                    <td className="py-2 px-2">
-                      <SearchSelect icon={<Truck size={17} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Digite o fornecedor..." />
-                    </td>
-                    <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
-                    <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
-                    <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Rendimento informado para pagamento do fornecedor" /></td>
-                    <td className={clsx('py-4 px-3 font-bold text-lg', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
-                      {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
-                    </td>
-                    <td className="py-2 px-2">
-                      <Select value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="!h-11 !text-base">
-                        <option value="PREVISTO">Previsão</option>
-                        <option value="RECEBIDO">Recebido</option>
-                      </Select>
-                    </td>
-                    <td className="py-2 px-2">
-                      <Input type="time" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="!h-11 !text-base" />
-                    </td>
-                    <td className="py-2 px-2">
-                      <Input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Observação do produto..." className="!h-11 !text-base" />
-                    </td>
-                    <td className="py-3 px-2">
-                      <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30 transition" title="Remover linha">
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gradient-to-r from-brand-50 to-emerald-50 font-bold border-t-2 border-brand-200">
-                <td colSpan={2} className="py-4 px-3 text-right uppercase text-sm tracking-wide text-slate-700">Totais</td>
-                <td className="py-4 px-3 text-brand-700 text-xl">{brNum(totals.forecast, 0)}</td>
-                <td className="py-4 px-3 text-emerald-700 text-xl">{brNum(totals.received, 0)}</td>
-                <td className="py-4 px-3 text-purple-700 text-xl">{brNum(totals.rendimento, 0)}</td>
-                <td className="py-4 px-3 text-slate-800 text-xl">{deltaLabel(totals.delta)}</td>
-                <td colSpan={4} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Mobile */}
-        <div className="lg:hidden space-y-3">
+        {/* Itens — cards compactos, dois blocos bem separados por responsável. */}
+        <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
           {rows.map((r, idx) => {
             const delta = deltaOf(r.forecast, r.received);
             return (
-              <div key={r._key} className="rounded-xl border-2 border-slate-200 bg-white p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold uppercase tracking-wide text-slate-600">Item {idx + 1}</span>
-                  <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30">
-                    <Trash2 size={18} />
+              <div key={r._key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex items-start gap-2 mb-2">
+                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-bold uppercase text-slate-600">
+                    Item {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <SearchSelect compact icon={<Package size={15} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Produto..." />
+                    <SearchSelect compact icon={<Truck size={15} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Fornecedor..." />
+                  </div>
+                  <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="shrink-0 p-1.5 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30" title="Remover item">
+                    <Trash2 size={16} />
                   </button>
                 </div>
-                <SearchSelect label="Produto" icon={<Package size={17} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Digite o produto..." />
-                <SearchSelect label="Fornecedor" icon={<Truck size={17} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Digite o fornecedor..." />
-                <div className="grid grid-cols-3 gap-3">
-                  <Input type="number" min="0" step="0.001" label="Previsão" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
-                  <Input type="number" min="0" step="0.001" label="Recebido" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
-                  <Input type="number" min="0" step="0.001" label="Rendimento" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* 1) Previsão — comprador */}
+                  <section className="rounded-lg border border-sky-200 bg-sky-50/70 p-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-800">
+                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-600 text-[9px] text-white">1</span>
+                      Previsão — comprador
+                    </div>
+                    <Input label="Comprador" list="hl-compradores" value={r.compradorName} onChange={(e) => { setRow(idx, { compradorName: e.target.value, compradorId: '' }); }} placeholder="Nome do comprador" className="!h-8 !text-sm" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="time" label="Horário previsto" value={r.forecastTime} onChange={(e) => setRow(idx, { forecastTime: e.target.value })} className="!h-8 !text-sm" />
+                      <Select label="Docа" value={r.dockId} onChange={(e) => setRow(idx, { dockId: e.target.value })} className="!h-8 !text-sm">
+                        <option value="">Selecione...</option>
+                        {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </Select>
+                    </div>
+                    <Input type="number" min="0" step="0.001" label="Previsão (cx)" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" />
+                  </section>
+
+                  {/* 2) Recebimento — conferente */}
+                  <section className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] text-white">2</span>
+                      Recebimento — conferente
+                    </div>
+                    <Input label="Conferente" list="hl-conferentes" value={r.conferenteName} onChange={(e) => { setRow(idx, { conferenteName: e.target.value, conferenteId: '' }); }} placeholder="Nome do conferente" className="!h-8 !text-sm" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="time" label="Horário do lançamento" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="!h-8 !text-sm" />
+                      <Select label="Situação" value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="!h-8 !text-sm">
+                        <option value="PREVISTO">Previsão</option>
+                        <option value="RECEBIDO">Recebido</option>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="number" min="0" step="0.001" label="Recebido (cx)" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" />
+                      <Input type="number" min="0" step="0.001" label="Rendimento" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" title="Informado à mão — base de pagamento do fornecedor" />
+                    </div>
+                  </section>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Select label="Situação" value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="!h-12 !text-base">
-                    <option value="PREVISTO">Previsão</option>
-                    <option value="RECEBIDO">Recebido</option>
-                  </Select>
-                  <Input type="time" label="Horário de entrada" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="!h-12 !text-base" />
-                </div>
-                <Input label="Observações" value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional..." className="!h-12 !text-base" />
-                <div className={clsx('text-right font-bold text-lg', delta > 0 && r.status === 'RECEBIDO' ? 'text-red-600' : delta < 0 && r.status === 'RECEBIDO' ? 'text-emerald-700' : 'text-slate-500')}>
-                  Delta: {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
+
+                <div className="mt-2 flex items-end gap-3">
+                  <div className="flex-1">
+                    <Input label="Observações do item" value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="!h-8 !text-sm" />
+                  </div>
+                  <div className={clsx('shrink-0 pb-1 text-right text-sm font-bold', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
+                    Delta: {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
+                  </div>
                 </div>
               </div>
             );
           })}
-          <div className="rounded-xl border-2 border-brand-200 bg-brand-50 p-4">
-            <div className="text-sm font-bold uppercase text-slate-700 mb-2">Totais</div>
-            <div className="grid grid-cols-4 text-center gap-2">
-              <div><div className="text-xs text-slate-600">Previsão</div><div className="text-xl font-bold text-brand-700">{brNum(totals.forecast, 0)}</div></div>
-              <div><div className="text-xs text-slate-600">Recebido</div><div className="text-xl font-bold text-emerald-700">{brNum(totals.received, 0)}</div></div>
-              <div><div className="text-xs text-slate-600">Rendimento</div><div className="text-xl font-bold text-purple-700">{brNum(totals.rendimento, 0)}</div></div>
-              <div><div className="text-xs text-slate-600">Delta</div><div className="text-xl font-bold text-slate-800">{deltaLabel(totals.delta)}</div></div>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-brand-200 bg-brand-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Totais</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <span className="text-slate-600">Previsão <b className="ml-1 text-brand-700">{brNum(totals.forecast, 0)}</b></span>
+              <span className="text-slate-600">Recebido <b className="ml-1 text-emerald-700">{brNum(totals.received, 0)}</b></span>
+              <span className="text-slate-600">Rendimento <b className="ml-1 text-purple-700">{brNum(totals.rendimento, 0)}</b></span>
+              <span className="text-slate-600">Delta <b className="ml-1 text-slate-800">{deltaLabel(totals.delta)}</b></span>
             </div>
           </div>
         </div>
@@ -782,6 +797,7 @@ export default function LaunchesPage() {
                 <th className="py-3 px-3">Produto</th>
                 <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
+                <th className="py-3 px-3">Horários prev./lanç.</th>
                 <th className="py-3 px-3">Comprador</th>
                 <th className="py-3 px-3">Conferente</th>
                 <th className="py-3 px-3">Observações</th>
@@ -792,7 +808,7 @@ export default function LaunchesPage() {
               {pendingBySupplier.map((group) => (
                 <Fragment key={group.key}>
                   <tr className="bg-slate-50 border-b-2 border-brand-100">
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       <SupplierGroupHeader group={group} />
                     </td>
                   </tr>
@@ -801,9 +817,13 @@ export default function LaunchesPage() {
                       <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
                       <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[220px] max-w-[320px] leading-snug" title={it.productName ?? ''}>{it.productName}</td>
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.launch.dockName ?? '—'}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.launch.compradorName ?? ''}>{it.launch.compradorName ?? '—'}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.launch.conferenteName ?? ''}>{it.launch.conferenteName ?? '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
+                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                        <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
+                        <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b></div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.conferenteName || it.launch.conferenteName || ''}>{it.conferenteName || it.launch.conferenteName || '—'}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                       <td className="py-3 px-3 text-right">
                         <div className="inline-flex gap-1">
@@ -825,7 +845,7 @@ export default function LaunchesPage() {
               ))}
               {pendingBySupplier.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center text-slate-500">
+                  <td colSpan={9} className="p-10 text-center text-slate-500">
                     <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
                     <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
                   </td>
@@ -853,13 +873,16 @@ export default function LaunchesPage() {
                           {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center border-y border-slate-200 py-2">
-                        <div><div className="text-xs text-slate-500">Previsão</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
-                        <div><div className="text-xs text-slate-500">Docа</div><div className="font-bold text-slate-700 text-xs break-words">{it.launch.dockName ?? '—'}</div></div>
-                        <div><div className="text-xs text-slate-500">Situação</div><div className="font-bold text-brand-700">Aguardando</div></div>
+                      <div className="grid grid-cols-2 gap-2 text-center border-y border-slate-200 py-2">
+                        <div><div className="text-[11px] text-slate-500">Previsão (cx)</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
+                        <div><div className="text-[11px] text-slate-500">Docа</div><div className="font-bold text-slate-700 text-xs break-words">{it.dockName || it.launch.dockName || '—'}</div></div>
                       </div>
-                      <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.launch.compradorName ?? '—'}</div>
-                      <div className="text-xs text-slate-600 break-words"><b>Conferente:</b> {it.launch.conferenteName ?? '—'}</div>
+                      <div className="grid grid-cols-2 gap-2 rounded-lg bg-white/70 p-2 text-center">
+                        <div><div className="text-[11px] text-slate-500">Horário previsto</div><div className="font-bold text-sky-700">{it.forecastTime ?? '—'}</div></div>
+                        <div><div className="text-[11px] text-slate-500">Horário lançado</div><div className="font-bold text-emerald-700">{it.entryTime ?? '—'}</div></div>
+                      </div>
+                      <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.compradorName || it.launch.compradorName || '—'}</div>
+                      <div className="text-xs text-slate-600 break-words"><b>Conferente:</b> {it.conferenteName || it.launch.conferenteName || '—'}</div>
                       {it.notes && <div className="text-xs text-slate-600 break-words"><b>Observações:</b> {it.notes}</div>}
                     </div>
                   ))}

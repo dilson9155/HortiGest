@@ -20,6 +20,7 @@ type Item = {
   received: string;
   rendimento: string;
   delta: number;
+  forecastTime: string | null;
   entryTime: string | null;
   notes: string | null;
   dockName: string;
@@ -198,7 +199,7 @@ export default function ReportsPage() {
                 <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
                   <tr>
                     <th className="py-3 px-3">Data</th>
-                    <th className="py-3 px-3">Horário</th>
+                    <th className="py-3 px-3">Horários prev./lanç.</th>
                     <th className="py-3 px-3">Produto</th>
                     <th className="py-3 px-3">Fornecedor</th>
                     <th className="py-3 px-3 text-right">Previsão</th>
@@ -217,7 +218,10 @@ export default function ReportsPage() {
                       <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
                         {isoDate(it.launch?.referenceDate || it.referenceDate).split('-').reverse().join('/')}
                       </td>
-                      <td className="py-3 px-3 font-bold text-brand-700 whitespace-nowrap">{it.entryTime ?? '—'}</td>
+                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                        <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
+                        <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b></div>
+                      </td>
                       <td className="py-3 px-3 font-medium text-slate-800 text-sm whitespace-normal break-words min-w-[200px] leading-snug" title={it.productName}>{it.productName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[180px] leading-snug" title={it.supplierName}>{it.supplierName}</td>
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
@@ -253,7 +257,12 @@ export default function ReportsPage() {
                 <div key={it.id} className="card p-4 border border-slate-200">
                   <div className="font-bold text-base text-slate-800 break-words leading-snug" title={it.productName}>{it.productName}</div>
                   <div className="text-xs text-slate-600 break-words">
-                    {it.supplierName} · {isoDate(it.launch?.referenceDate || it.referenceDate).split('-').reverse().join('/')} · {it.entryTime ?? '—'}
+                    {it.supplierName} · {isoDate(it.launch?.referenceDate || it.referenceDate).split('-').reverse().join('/')}
+                  </div>
+                  <div className="text-xs break-words">
+                    <span className="text-slate-500">Previsto:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b>
+                    {' · '}
+                    <span className="text-slate-500">Lançado:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b>
                   </div>
                   <div className="mt-3 grid grid-cols-4 text-center border-y border-slate-100 py-2">
                     <div><div className="text-xs text-slate-500 uppercase">Previsão</div><div className="font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</div></div>

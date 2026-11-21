@@ -85,18 +85,10 @@ export async function GET(req: Request) {
     where.launch = where.launch ?? {};
     where.launch.userId = userId;
   }
-  if (dockId) {
-    where.launch = where.launch ?? {};
-    where.launch.dockId = dockId;
-  }
-  if (conferenteId) {
-    where.launch = where.launch ?? {};
-    where.launch.conferenteId = conferenteId;
-  }
-  if (compradorId) {
-    where.launch = where.launch ?? {};
-    where.launch.compradorId = compradorId;
-  }
+  // Responsáveis/doca são gravados por item; mantemos fallback do lançamento.
+  if (dockId) where.AND = [...(where.AND ?? []), { OR: [{ dockId }, { launch: { dockId } }] }];
+  if (conferenteId) where.AND = [...(where.AND ?? []), { OR: [{ conferenteId }, { launch: { conferenteId } }] }];
+  if (compradorId) where.AND = [...(where.AND ?? []), { OR: [{ compradorId }, { launch: { compradorId } }] }];
   if (productId) where.productId = productId;
   if (supplierId) where.supplierId = supplierId;
   if (timeFrom || timeTo) {
@@ -109,6 +101,9 @@ export async function GET(req: Request) {
       { productName: { contains: q, mode: 'insensitive' } },
       { supplierName: { contains: q, mode: 'insensitive' } },
       { notes: { contains: q, mode: 'insensitive' } },
+      { dockName: { contains: q, mode: 'insensitive' } },
+      { conferenteName: { contains: q, mode: 'insensitive' } },
+      { compradorName: { contains: q, mode: 'insensitive' } },
       { launch: { dockName: { contains: q, mode: 'insensitive' } } },
       { launch: { conferenteName: { contains: q, mode: 'insensitive' } } },
       { launch: { compradorName: { contains: q, mode: 'insensitive' } } },
@@ -134,6 +129,7 @@ export async function GET(req: Request) {
   const items = rows
     .map((it) => ({
       date: dateBR((it.launch as any)?.referenceDate),
+      forecastTime: it.forecastTime ?? '—',
       time: it.entryTime ?? '—',
       product: it.productName,
       supplier: it.supplierName,
@@ -141,7 +137,9 @@ export async function GET(req: Request) {
       received: Number(it.received),
       rendimento: Number(it.rendimento),
       delta: Number(it.forecast) - Number(it.received),
-      dock: (it.launch as any)?.dockName ?? '—',
+      dock: it.dockName || (it.launch as any)?.dockName || '—',
+      compradorName: it.compradorName || (it.launch as any)?.compradorName || '—',
+      conferenteName: it.conferenteName || (it.launch as any)?.conferenteName || '—',
       notes: it.notes ?? '',
       kg: Number(it.boxKg),
     }))
@@ -206,13 +204,13 @@ export async function GET(req: Request) {
       let productW = 150;
       let supplierW = 140;
       let notesW = 185;
-      let fixed = 62 + 48 + 62 + 62 + 62 + 62 + 76; // data, hora, previsão, recebido, rendimento, delta, docа
+      let fixed = 62 + 78 + 62 + 62 + 62 + 62 + 76; // data, horários, previsão, recebido, rendimento, delta, docа
       const diff = contentW - (fixed + productW + supplierW + notesW);
       notesW += diff;
 
       const cols: Col[] = [
         { label: 'Data', w: 62, align: 'left' },
-        { label: 'Horário', w: 48, align: 'left' },
+        { label: 'Horários', w: 78, align: 'left' },
         { label: 'Produto', w: productW, align: 'left' },
         { label: 'Fornecedor', w: supplierW, align: 'left' },
         { label: 'Previsão', w: 62, align: 'right' },
@@ -232,7 +230,7 @@ export async function GET(req: Request) {
       }
       const tableRight = colX[cols.length - 1] + cols[cols.length - 1].w;
 
-      const ROW_H = 19;
+      const ROW_H = 25;
       const padX = 5;
       const maxY = pageH - 54;
 
@@ -278,10 +276,19 @@ export async function GET(req: Request) {
         return y + 22;
       }
 
-      function drawRow(y: number, values: string[], striped: boolean, deltaValue: number) {
+      function drawRow(y: number, values: string[], striped: boolean, deltaValue: number, responsaveis: string) {
         if (striped) doc.rect(MARGIN, y, contentW, ROW_H).fill('#f1f5f9');
         doc.font('Helvetica').fontSize(9.5);
         cols.forEach((c, i) => {
+          const maxW = c.w - padX * 2;
+          if (i === 9) {
+            // Responsáveis por item no topo e observações logo abaixo.
+            doc.fillColor('#1d4ed8').font('Helvetica-Bold').fontSize(8);
+            doc.text(fitText(responsaveis, maxW), colX[i] + padX, y + 4, { width: maxW, align: c.align, lineBreak: false });
+            doc.fillColor('#0f172a').font('Helvetica').fontSize(8);
+            doc.text(fitText(values[i], maxW), colX[i] + padX, y + 14, { width: maxW, align: c.align, lineBreak: false });
+            return;
+          }
           if (i === 7) {
             // delta positivo = faltou receber (atenção); negativo = veio a mais.
             doc.fillColor(deltaValue > 0 ? '#b91c1c' : deltaValue < 0 ? '#047857' : '#475569');
@@ -290,8 +297,7 @@ export async function GET(req: Request) {
             doc.fillColor('#0f172a');
             doc.font('Helvetica');
           }
-          const maxW = c.w - padX * 2;
-          doc.text(fitText(values[i], maxW), colX[i] + padX, y + 5, { width: maxW, align: c.align, lineBreak: false });
+          doc.text(fitText(values[i], maxW), colX[i] + padX, y + 7, { width: maxW, align: c.align, lineBreak: false });
         });
         doc.moveTo(MARGIN, y + ROW_H).lineTo(tableRight, y + ROW_H).lineWidth(0.4).strokeColor('#e2e8f0').stroke();
       }
@@ -350,10 +356,11 @@ export async function GET(req: Request) {
             y = drawTableHeader(y);
           }
           const values = [
-            it.date, it.time, it.product, it.supplier,
+            it.date, `${it.forecastTime}/${it.time}`, it.product, it.supplier,
             fmtInt(it.forecast), fmtInt(it.received), fmtDec(it.rendimento, 2), deltaLabelBR(it.delta), it.dock, it.notes,
           ];
-          drawRow(y, values, idx % 2 === 1, it.delta);
+          const responsaveis = `C: ${it.compradorName}  •  F: ${it.conferenteName}`;
+          drawRow(y, values, idx % 2 === 1, it.delta, responsaveis);
           y += ROW_H;
         });
 

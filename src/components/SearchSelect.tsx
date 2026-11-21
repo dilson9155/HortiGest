@@ -28,6 +28,7 @@ type Props = {
   search?: (item: Option, q: string) => boolean;
   emptyLabel?: string;
   className?: string;
+  compact?: boolean;
 };
 
 function defaultSearch(item: Option, q: string) {
@@ -49,6 +50,7 @@ export default function SearchSelect({
   search,
   emptyLabel = 'Nada encontrado',
   className,
+  compact,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -153,7 +155,8 @@ export default function SearchSelect({
           placeholder={placeholder}
           title={open ? undefined : selected?.label ?? placeholder}
           className={clsx(
-            'w-full h-11 pl-10 pr-10 text-base rounded-lg border-2 bg-white',
+            'w-full pr-10 rounded-lg border-2 bg-white',
+            compact ? 'h-9 pl-9 text-sm' : 'h-11 pl-10 text-base',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
             'placeholder:text-slate-400',
             error ? 'border-red-300' : 'border-slate-200',
