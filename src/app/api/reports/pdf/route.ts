@@ -140,14 +140,15 @@ export async function GET(req: Request) {
       forecast: Number(it.forecast),
       received: Number(it.received),
       rendimento: Number(it.rendimento),
-      delta: Number(it.received) - Number(it.forecast),
+      delta: Number(it.forecast) - Number(it.received),
       dock: (it.launch as any)?.dockName ?? '—',
       notes: it.notes ?? '',
       kg: Number(it.boxKg),
     }))
     .filter((it) => {
-      if (deltaFilter === 'MAIS') return it.delta > 0;
-      if (deltaFilter === 'MENOS') return it.delta < 0;
+      // delta = previsão - recebido: veio a mais => negativo; veio a menos => positivo.
+      if (deltaFilter === 'MAIS') return it.delta < 0;
+      if (deltaFilter === 'MENOS') return it.delta > 0;
       if (deltaFilter === 'OK') return it.delta === 0;
       return true;
     });
@@ -282,7 +283,8 @@ export async function GET(req: Request) {
         doc.font('Helvetica').fontSize(9.5);
         cols.forEach((c, i) => {
           if (i === 7) {
-            doc.fillColor(deltaValue > 0 ? '#047857' : deltaValue < 0 ? '#b91c1c' : '#475569');
+            // delta positivo = faltou receber (atenção); negativo = veio a mais.
+            doc.fillColor(deltaValue > 0 ? '#b91c1c' : deltaValue < 0 ? '#047857' : '#475569');
             doc.font('Helvetica-Bold');
           } else {
             doc.fillColor('#0f172a');

@@ -63,8 +63,9 @@ function newRow(): Row {
   };
 }
 
+// Delta = previsão - recebido (positivo = faltou receber; negativo = veio a mais).
 function deltaOf(forecast: unknown, received: unknown) {
-  return Number(received ?? 0) - Number(forecast ?? 0);
+  return Number(forecast ?? 0) - Number(received ?? 0);
 }
 
 function deltaLabel(v: number) {
@@ -469,7 +470,7 @@ export default function LaunchesPage() {
             <b>Fluxo:</b> preencha a previsão por produto. Quando a mercadoria chegar, informe a quantidade recebida,
             o <b>rendimento</b> (informado à mão, base de pagamento do fornecedor), o <b>horário de entrada</b> e as
             observações, e mude a situação para <b>Recebido</b>. O item sai daqui e aparece no módulo <b>Produtos recebidos</b>.
-            O delta (recebido − previsto) é calculado automaticamente.
+            O delta (previsto − recebido) é calculado automaticamente.
           </div>
         </div>
 
@@ -504,7 +505,7 @@ export default function LaunchesPage() {
                     <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
                     <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
                     <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Rendimento informado para pagamento do fornecedor" /></td>
-                    <td className={clsx('py-4 px-3 font-bold text-lg', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-600' : 'text-slate-500') : 'text-slate-300')}>
+                    <td className={clsx('py-4 px-3 font-bold text-lg', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
                       {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
                     </td>
                     <td className="py-2 px-2">
@@ -568,7 +569,7 @@ export default function LaunchesPage() {
                   <Input type="time" label="Horário de entrada" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="!h-12 !text-base" />
                 </div>
                 <Input label="Observações" value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional..." className="!h-12 !text-base" />
-                <div className={clsx('text-right font-bold text-lg', delta > 0 && r.status === 'RECEBIDO' ? 'text-emerald-700' : delta < 0 && r.status === 'RECEBIDO' ? 'text-red-600' : 'text-slate-500')}>
+                <div className={clsx('text-right font-bold text-lg', delta > 0 && r.status === 'RECEBIDO' ? 'text-red-600' : delta < 0 && r.status === 'RECEBIDO' ? 'text-emerald-700' : 'text-slate-500')}>
                   Delta: {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
                 </div>
               </div>

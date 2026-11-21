@@ -44,7 +44,8 @@ export const GET = handler(async (req) => {
 
   const forecast = Number(agg._sum.forecast ?? 0);
   const received = Number(agg._sum.received ?? 0);
-  const delta = received - forecast;
+  // Delta = previsão - recebido.
+  const delta = forecast - received;
   const items = agg._count.id;
 
   const percent = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
@@ -75,7 +76,7 @@ export const GET = handler(async (req) => {
     const cur = dailyMap.get(k) ?? { date: k, forecast: 0, received: 0, delta: 0 };
     cur.forecast += Number(g._sum.forecast ?? 0);
     cur.received += Number(g._sum.received ?? 0);
-    cur.delta += Number(g._sum.received ?? 0) - Number(g._sum.forecast ?? 0);
+    cur.delta += Number(g._sum.forecast ?? 0) - Number(g._sum.received ?? 0);
     dailyMap.set(k, cur);
   }
   const productionDaily = [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -98,7 +99,7 @@ export const GET = handler(async (req) => {
     productName: pMap.get(p.productId) ?? '—',
     forecast: Number(p._sum.forecast ?? 0),
     received: Number(p._sum.received ?? 0),
-    delta: Number(p._sum.received ?? 0) - Number(p._sum.forecast ?? 0),
+    delta: Number(p._sum.forecast ?? 0) - Number(p._sum.received ?? 0),
   }));
 
   // Por fornecedor
@@ -119,7 +120,7 @@ export const GET = handler(async (req) => {
     supplierName: sMap.get(p.supplierId) ?? '—',
     forecast: Number(p._sum.forecast ?? 0),
     received: Number(p._sum.received ?? 0),
-    delta: Number(p._sum.received ?? 0) - Number(p._sum.forecast ?? 0),
+    delta: Number(p._sum.forecast ?? 0) - Number(p._sum.received ?? 0),
   }));
 
   const recent = await prisma.launch.findMany({

@@ -99,7 +99,7 @@ export const GET = handler(async (req) => {
       forecast: String(it.forecast),
       received: String(it.received),
       rendimento: String(it.rendimento),
-      delta: Number(it.received) - Number(it.forecast),
+      delta: Number(it.forecast) - Number(it.received),
       entryTime: it.entryTime,
       notes: it.notes,
       dockName: (it.launch as any).dockName ?? '—',
@@ -111,8 +111,9 @@ export const GET = handler(async (req) => {
       },
     }))
     .filter((it) => {
-      if (deltaFilter === 'MAIS') return it.delta > 0;
-      if (deltaFilter === 'MENOS') return it.delta < 0;
+      // delta = previsão - recebido: veio a mais => negativo; veio a menos => positivo.
+      if (deltaFilter === 'MAIS') return it.delta < 0;
+      if (deltaFilter === 'MENOS') return it.delta > 0;
       if (deltaFilter === 'OK') return it.delta === 0;
       return true;
     });
