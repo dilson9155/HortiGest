@@ -15,8 +15,8 @@ export function Input({ label, hint, error, className, ...rest }: InputProps) {
     <div>
       {label && <label className="label">{label}</label>}
       <input className={clsx('input', error && 'border-red-400', className)} {...rest} />
-      {hint && !error && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {hint && !error && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -57,8 +57,8 @@ export function NumberInput({
         }}
         className={clsx('input no-spinner', error && 'border-red-400', className)}
       />
-      {hint && !error && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {hint && !error && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -75,7 +75,7 @@ export function Select({ label, error, className, children, ...rest }: SelectPro
       <select className={clsx('input', error && 'border-red-400', className)} {...rest}>
         {children}
       </select>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -172,7 +172,7 @@ export function SectionCard({
       <header className="mb-4 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
+          {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
         </div>
         {actions && <div className="flex gap-2 flex-wrap">{actions}</div>}
       </header>

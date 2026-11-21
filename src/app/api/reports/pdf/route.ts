@@ -24,7 +24,6 @@ function dateBR(d: unknown): string {
   if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : (d as Date);
   if (isNaN(date.getTime())) return '—';
-  // referenceDate é "date only" (UTC). Formatar em UTC evita deslocar um dia.
   return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
@@ -61,10 +60,11 @@ export async function GET(req: Request) {
   const productId = url.searchParams.get('productId');
   const supplierId = url.searchParams.get('supplierId');
   const userId = url.searchParams.get('userId');
-  const entity = url.searchParams.get('entity');
+  const dockId = url.searchParams.get('dockId');
+  const deltaFilter = url.searchParams.get('delta');
 
   // ---------- 1) Buscar dados ----------
-  const where: any = {};
+  const where: any = { status: 'RECEBIDO' };
   if (startDate || endDate) {
     where.launch = where.launch ?? {};
     where.launch.referenceDate = {};
@@ -77,37 +77,54 @@ export async function GET(req: Request) {
     where.launch = where.launch ?? {};
     where.launch.userId = userId;
   }
+  if (dockId) {
+    where.launch = where.launch ?? {};
+    where.launch.dockId = dockId;
+  }
   if (productId) where.productId = productId;
   if (supplierId) where.supplierId = supplierId;
-  if (entity === 'BREAK') where.broken = { gt: 0 };
-  if (entity === 'MISSING') where.missing = { gt: 0 };
-  // Relatórios consideram apenas lançamentos confirmados (previsões ficam de fora).
-  where.launch = { ...(where.launch ?? {}), status: 'CONFIRMADO' };
 
-  const items = await prisma.launchItem.findMany({
+  const rows = await prisma.launchItem.findMany({
     where,
-    include: { launch: { select: { referenceDate: true } } },
-    orderBy: [{ launch: { referenceDate: 'desc' } }, { productName: 'asc' }],
+    include: {
+      launch: {
+        select: { referenceDate: true, dockName: true, user: { select: { name: true } } },
+      },
+    },
+    orderBy: [{ launch: { referenceDate: 'desc' } }, { entryTime: 'asc' }, { productName: 'asc' }],
   });
+
+  const items = rows
+    .map((it) => ({
+      date: dateBR((it.launch as any)?.referenceDate),
+      time: it.entryTime ?? '—',
+      product: it.productName,
+      supplier: it.supplierName,
+      forecast: Number(it.forecast),
+      received: Number(it.received),
+      delta: Number(it.received) - Number(it.forecast),
+      dock: (it.launch as any)?.dockName ?? '—',
+      notes: it.notes ?? '',
+      kg: Number(it.boxKg),
+    }))
+    .filter((it) => {
+      if (deltaFilter === 'MAIS') return it.delta > 0;
+      if (deltaFilter === 'MENOS') return it.delta < 0;
+      if (deltaFilter === 'OK') return it.delta === 0;
+      return true;
+    });
 
   const totals = items.reduce(
     (acc, it) => {
-      const rec = Number(it.received);
-      const pro = Number(it.produced);
-      const brk = Number(it.broken);
-      const mis = Number(it.missing);
-      const kg = Number(it.boxKg);
-      acc.received += rec;
-      acc.produced += pro;
-      acc.broken += brk;
-      acc.missing += mis;
-      acc.receivedKg += rec * kg;
-      acc.producedKg += pro * kg;
-      acc.brokenKg += brk * kg;
-      acc.missingKg += mis * kg;
+      acc.forecast += it.forecast;
+      acc.received += it.received;
+      acc.delta += it.delta;
+      acc.forecastKg += it.forecast * it.kg;
+      acc.receivedKg += it.received * it.kg;
+      acc.deltaKg += it.delta * it.kg;
       return acc;
     },
-    { received: 0, produced: 0, broken: 0, missing: 0, receivedKg: 0, producedKg: 0, brokenKg: 0, missingKg: 0 },
+    { forecast: 0, received: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
   );
 
   // ---------- 2) Empresa / logo ----------
@@ -128,9 +145,9 @@ export async function GET(req: Request) {
         margin: 28,
         bufferPages: true,
         info: {
-          Title: `Relatório de Produção — ${companyName}`,
+          Title: `Relatório de Recebimento — ${companyName}`,
           Author: companyName,
-          Subject: 'Relatório de Produção Hortifrúti',
+          Subject: 'Relatório de Recebimento Hortifrúti',
           Creator: 'HortiGest',
         },
       });
@@ -140,29 +157,29 @@ export async function GET(req: Request) {
       doc.on('error', reject);
 
       const MARGIN = 28;
-      const pageW = doc.page.width; // ~841.89 (A4 landscape)
-      const pageH = doc.page.height; // ~595.28
+      const pageW = doc.page.width;
+      const pageH = doc.page.height;
       const contentW = pageW - MARGIN * 2;
 
-      // ----- Colunas (larguras somam exatamente contentW) -----
+      // Colunas (larguras somam exatamente contentW).
       type Col = { label: string; w: number; align: 'left' | 'right' };
-      const fixedData = 70;
-      const fixedNums = { received: 72, produced: 74, broken: 64, missing: 64 };
-      const flex = contentW - (fixedData + fixedNums.received + fixedNums.produced + fixedNums.broken + fixedNums.missing);
-      let productW = Math.round(flex * 0.56);
-      let supplierW = Math.round(flex - productW);
-      // Ajusta arredondamento para fechar exatamente na margem direita.
-      const used = fixedData + productW + supplierW + fixedNums.received + fixedNums.produced + fixedNums.broken + fixedNums.missing;
-      supplierW += contentW - used;
+      let productW = 150;
+      let supplierW = 140;
+      let notesW = 185;
+      let fixed = 62 + 48 + 62 + 62 + 62 + 76; // data, hora, previsão, recebido, delta, docа
+      const diff = contentW - (fixed + productW + supplierW + notesW);
+      notesW += diff;
 
       const cols: Col[] = [
-        { label: 'Data', w: fixedData, align: 'left' },
+        { label: 'Data', w: 62, align: 'left' },
+        { label: 'Horário', w: 48, align: 'left' },
         { label: 'Produto', w: productW, align: 'left' },
         { label: 'Fornecedor', w: supplierW, align: 'left' },
-        { label: 'Recebido', w: fixedNums.received, align: 'right' },
-        { label: 'Produzido', w: fixedNums.produced, align: 'right' },
-        { label: 'Quebra', w: fixedNums.broken, align: 'right' },
-        { label: 'Falta', w: fixedNums.missing, align: 'right' },
+        { label: 'Previsão', w: 62, align: 'right' },
+        { label: 'Recebido', w: 62, align: 'right' },
+        { label: 'Delta', w: 62, align: 'right' },
+        { label: 'Docа', w: 76, align: 'left' },
+        { label: 'Observações', w: notesW, align: 'left' },
       ];
       const colX: number[] = [];
       {
@@ -172,13 +189,12 @@ export async function GET(req: Request) {
           x += c.w;
         }
       }
-      const tableRight = colX[cols.length - 1] + cols[cols.length - 1].w; // = pageW - MARGIN
+      const tableRight = colX[cols.length - 1] + cols[cols.length - 1].w;
 
-      const ROW_H = 17;
+      const ROW_H = 19;
       const padX = 5;
-      const maxY = pageH - 54; // deixa espaço para o rodapé
+      const maxY = pageH - 54;
 
-      // Trunca pelo tamanho REAL (medido), garantindo que nada vaze da coluna.
       function fitText(text: unknown, maxW: number): string {
         let s = String(text ?? '').trim();
         if (!s) return '';
@@ -187,9 +203,8 @@ export async function GET(req: Request) {
         return s + '…';
       }
 
-      // ----- Cabeçalho -----
       function drawHeader() {
-        const hH = 60;
+        const hH = 62;
         doc.rect(MARGIN, MARGIN, contentW, hH).fill('#0f766e');
         doc.rect(MARGIN, MARGIN, 5, hH).fill('#15803d');
         doc.rect(MARGIN, MARGIN + hH - 2.5, contentW, 2.5).fill('#134e4a');
@@ -198,96 +213,93 @@ export async function GET(req: Request) {
         const textX = logoBuffer ? MARGIN + 200 : MARGIN + 20;
         if (logoBuffer) {
           try {
-            doc.image(logoBuffer, logoX, MARGIN + 8, { fit: [170, 44] });
+            doc.image(logoBuffer, logoX, MARGIN + 8, { fit: [170, 46] });
           } catch {
-            /* fallback: sem logo */
+            /* sem logo */
           }
         }
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(15).text(companyName, textX, MARGIN + 12, { width: 320, lineBreak: false, ellipsis: true });
-        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(8).text('Controle e Produção de Hortifrúti', textX, MARGIN + 33, { width: 320, lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(16).text(companyName, textX, MARGIN + 11, { width: 320, lineBreak: false, ellipsis: true });
+        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(9).text('Controle de Recebimento de Hortifrúti', textX, MARGIN + 34, { width: 340, lineBreak: false });
 
-        const rightX = pageW - MARGIN - 260;
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10.5).text('RELATÓRIO DE PRODUÇÃO', rightX, MARGIN + 10, { width: 260, align: 'right', lineBreak: false });
-        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(7.5)
-          .text(`Emissão: ${emittedAt}`, rightX, MARGIN + 27, { width: 260, align: 'right', lineBreak: false })
-          .text(`Usuário: ${sessionName}`, rightX, MARGIN + 38, { width: 260, align: 'right', lineBreak: false });
+        const rightX = pageW - MARGIN - 280;
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text('RELATÓRIO DE RECEBIMENTO', rightX, MARGIN + 9, { width: 280, align: 'right', lineBreak: false });
+        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(8.5)
+          .text(`Emissão: ${emittedAt}`, rightX, MARGIN + 28, { width: 280, align: 'right', lineBreak: false })
+          .text(`Usuário: ${sessionName}`, rightX, MARGIN + 41, { width: 280, align: 'right', lineBreak: false });
       }
 
-      // ----- Cabeçalho da tabela -----
       function drawTableHeader(y: number): number {
-        doc.rect(MARGIN, y, contentW, 20).fill('#115e59');
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8.5);
+        doc.rect(MARGIN, y, contentW, 22).fill('#115e59');
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9.5);
         cols.forEach((c, i) => {
           doc.text(c.label, colX[i] + padX, y + 6, { width: c.w - padX * 2, align: c.align, lineBreak: false });
         });
-        return y + 20;
+        return y + 22;
       }
 
-      // ----- Linha da tabela -----
-      function drawRow(y: number, values: string[], striped: boolean) {
+      function drawRow(y: number, values: string[], striped: boolean, deltaValue: number) {
         if (striped) doc.rect(MARGIN, y, contentW, ROW_H).fill('#f1f5f9');
-        doc.fillColor('#0f172a').font('Helvetica').fontSize(8.5);
+        doc.font('Helvetica').fontSize(9.5);
         cols.forEach((c, i) => {
+          if (i === 6) {
+            doc.fillColor(deltaValue > 0 ? '#047857' : deltaValue < 0 ? '#b91c1c' : '#475569');
+            doc.font('Helvetica-Bold');
+          } else {
+            doc.fillColor('#0f172a');
+            doc.font('Helvetica');
+          }
           const maxW = c.w - padX * 2;
-          const txt = fitText(values[i], maxW);
-          doc.text(txt, colX[i] + padX, y + 5, { width: maxW, align: c.align, lineBreak: false });
+          doc.text(fitText(values[i], maxW), colX[i] + padX, y + 5, { width: maxW, align: c.align, lineBreak: false });
         });
-        // separador
         doc.moveTo(MARGIN, y + ROW_H).lineTo(tableRight, y + ROW_H).lineWidth(0.4).strokeColor('#e2e8f0').stroke();
       }
 
-      // ----- Nova página (com cabeçalho) -----
       function newPage(): number {
         doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
         drawHeader();
-        doc.fillColor('#64748b').font('Helvetica').fontSize(7.5).text(`Continuação do relatório — Período: ${period}`, MARGIN, MARGIN + 64, { width: contentW, lineBreak: false });
-        return MARGIN + 76;
+        doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Continuação — Período: ${period}`, MARGIN, MARGIN + 66, { width: contentW, lineBreak: false });
+        return MARGIN + 78;
       }
 
       drawHeader();
 
-      // ----- Título / resumo -----
-      let y = MARGIN + 60 + 12; // 100
-      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(13).text('Relatório Geral de Produção', MARGIN, y, { lineBreak: false });
-      y += 19;
-      doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Período: ${period}`, MARGIN, y, { lineBreak: false });
-      y += 13;
-      doc.fillColor('#475569').font('Helvetica').fontSize(8.5).text(
-        `Registros: ${items.length}   •   Recebido: ${fmtInt(totals.received)} cx   •   Produzido: ${fmtInt(totals.produced)} cx   •   Quebra: ${fmtInt(totals.broken)} cx   •   Falta: ${fmtInt(totals.missing)} cx   •   (valores em caixas)`,
-        MARGIN,
-        y,
-        { width: contentW, lineBreak: false, ellipsis: true, height: 12 },
+      let y = MARGIN + 62 + 12;
+      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text('Relatório Geral de Recebimento', MARGIN, y, { lineBreak: false });
+      y += 20;
+      doc.fillColor('#475569').font('Helvetica').fontSize(10).text(`Período: ${period}`, MARGIN, y, { lineBreak: false });
+      y += 16;
+      doc.fillColor('#475569').font('Helvetica').fontSize(9.5).text(
+        `Registros: ${items.length}   •   Previsão: ${fmtInt(totals.forecast)} cx   •   Recebido: ${fmtInt(totals.received)} cx   •   Delta: ${deltaLabelBR(totals.delta)} cx   •   (valores em caixas)`,
+        MARGIN, y, { width: contentW, lineBreak: false, ellipsis: true, height: 14 },
       );
 
-      // ----- Cards resumo -----
-      const cardY = y + 16;
-      const cardH = 42;
+      const cardY = y + 18;
+      const cardH = 46;
       const gap = 10;
       const cardW = (contentW - gap * 3) / 4;
       const cards = [
+        { label: 'PREVISÃO', cx: totals.forecast, kg: totals.forecastKg, color: '#1d4ed8' },
         { label: 'RECEBIDO', cx: totals.received, kg: totals.receivedKg, color: '#0f766e' },
-        { label: 'PRODUZIDO', cx: totals.produced, kg: totals.producedKg, color: '#16a34a' },
-        { label: 'QUEBRA', cx: totals.broken, kg: totals.brokenKg, color: '#d97706' },
-        { label: 'FALTA', cx: totals.missing, kg: totals.missingKg, color: '#dc2626' },
+        { label: 'DELTA', cx: totals.delta, kg: totals.deltaKg, color: '#b45309' },
+        { label: 'PRODUTOS', cx: items.length, kg: 0, color: '#4338ca' },
       ];
       cards.forEach((c, i) => {
         const x = MARGIN + i * (cardW + gap);
         doc.roundedRect(x, cardY, cardW, cardH, 5).fill(c.color);
-        doc.fillColor('#e6fffa').font('Helvetica-Bold').fontSize(7.5).text(c.label, x + 10, cardY + 6, { width: cardW - 20, lineBreak: false });
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(14).text(`${fmtInt(c.cx)} cx`, x + 10, cardY + 16, { width: cardW - 20, lineBreak: false });
-        doc.fillColor('#e6fffa').font('Helvetica').fontSize(7.5).text(`${fmtDec(c.kg, 1)} kg`, x + 10, cardY + 31, { width: cardW - 20, lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9).text(c.label, x + 10, cardY + 6, { width: cardW - 20, lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(16).text(`${fmtInt(c.cx)} ${c.label === 'PRODUTOS' ? '' : 'cx'}`, x + 10, cardY + 18, { width: cardW - 20, lineBreak: false });
+        if (c.label !== 'PRODUTOS') {
+          doc.fillColor('#e6fffa').font('Helvetica').fontSize(9).text(`${fmtDec(c.kg, 1)} kg`, x + 10, cardY + 35, { width: cardW - 20, lineBreak: false });
+        }
       });
 
-      // ----- Tabela -----
       y = cardY + cardH + 12;
       y = drawTableHeader(y);
 
       if (items.length === 0) {
-        doc.fillColor('#94a3b8').font('Helvetica-Oblique').fontSize(10).text(
-          'Nenhum registro encontrado para os filtros selecionados.',
-          MARGIN,
-          y + 24,
-          { width: contentW, align: 'center', lineBreak: false },
+        doc.fillColor('#94a3b8').font('Helvetica-Oblique').fontSize(11).text(
+          'Nenhum produto recebido encontrado para os filtros selecionados.',
+          MARGIN, y + 26, { width: contentW, align: 'center', lineBreak: false },
         );
       } else {
         items.forEach((it, idx) => {
@@ -296,50 +308,39 @@ export async function GET(req: Request) {
             y = drawTableHeader(y);
           }
           const values = [
-            dateBR((it.launch as any)?.referenceDate),
-            it.productName,
-            it.supplierName,
-            fmtInt(it.received),
-            fmtInt(it.produced),
-            fmtInt(it.broken),
-            fmtInt(it.missing),
+            it.date, it.time, it.product, it.supplier,
+            fmtInt(it.forecast), fmtInt(it.received), deltaLabelBR(it.delta), it.dock, it.notes,
           ];
-          drawRow(y, values, idx % 2 === 1);
+          drawRow(y, values, idx % 2 === 1, it.delta);
           y += ROW_H;
         });
 
-        // ----- Linha de totais -----
-        if (y + 44 > maxY) {
+        if (y + 46 > maxY) {
           y = newPage();
           y = drawTableHeader(y);
         }
-        doc.rect(MARGIN, y, contentW, 24).fill('#134e4a');
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9);
-        doc.text('TOTAIS', MARGIN + 8, y + 8, { width: cols[0].w + cols[1].w + cols[2].w - 12, lineBreak: false });
-        const totVals = [totals.received, totals.produced, totals.broken, totals.missing];
+        doc.rect(MARGIN, y, contentW, 26).fill('#134e4a');
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10);
+        doc.text('TOTAIS', MARGIN + 8, y + 8, { width: colX[4] - MARGIN - 12, lineBreak: false });
+        const totVals = [totals.forecast, totals.received, totals.delta];
         totVals.forEach((v, i) => {
-          const c = cols[3 + i];
-          doc.text(fmtInt(v), colX[3 + i] + padX, y + 8, { width: c.w - padX * 2, align: 'right', lineBreak: false });
+          const c = cols[4 + i];
+          doc.text(deltaLabelBR(v), colX[4 + i] + padX, y + 8, { width: c.w - padX * 2, align: 'right', lineBreak: false });
         });
-        y += 26;
-        doc.fillColor('#334155').font('Helvetica').fontSize(8).text(
-          `Peso total (kg) — Recebido: ${fmtDec(totals.receivedKg, 1)}   •   Produzido: ${fmtDec(totals.producedKg, 1)}   •   Quebra: ${fmtDec(totals.brokenKg, 1)}   •   Falta: ${fmtDec(totals.missingKg, 1)}`,
-          MARGIN,
-          y,
-          { width: contentW, lineBreak: false, ellipsis: true, height: 11 },
+        y += 30;
+        doc.fillColor('#334155').font('Helvetica').fontSize(9).text(
+          `Peso total (kg) — Previsão: ${fmtDec(totals.forecastKg, 1)}   •   Recebido: ${fmtDec(totals.receivedKg, 1)}   •   Delta: ${fmtDec(totals.deltaKg, 1)}`,
+          MARGIN, y, { width: contentW, lineBreak: false, ellipsis: true, height: 12 },
         );
       }
 
-      // ----- Rodapé + paginação (todas as páginas) -----
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);
-        // Zera a margem inferior: o rodapé fica abaixo da área de conteúdo e, sem
-        // isso, o pdfkit acha que o texto "não cabe" e cria páginas fantasmas.
         doc.page.margins.bottom = 0;
-        const yy = pageH - 30;
+        const yy = pageH - 28;
         doc.moveTo(MARGIN, yy - 6).lineTo(tableRight, yy - 6).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-        doc.fillColor('#94a3b8').font('Helvetica').fontSize(7);
+        doc.fillColor('#64748b').font('Helvetica').fontSize(8.5);
         doc.text(`HortiGest  •  ${companyName}  •  Emitido em ${emittedAt}`, MARGIN, yy, { width: contentW - 120, lineBreak: false });
         doc.text(`Página ${i + 1} de ${range.count}`, MARGIN, yy, { width: contentW, align: 'right', lineBreak: false });
       }
@@ -353,8 +354,14 @@ export async function GET(req: Request) {
   return new NextResponse(pdfBuffer as any, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="relatorio-producao-${Date.now()}.pdf"`,
+      'Content-Disposition': `inline; filename="relatorio-recebimento-${Date.now()}.pdf"`,
       'Cache-Control': 'no-store',
     },
   });
+}
+
+function deltaLabelBR(v: number): string {
+  const n = Number(v ?? 0);
+  if (!isFinite(n) || n === 0) return '0';
+  return `${n > 0 ? '+' : ''}${fmtInt(n)}`;
 }

@@ -18,6 +18,9 @@ import {
   X,
   KeyRound,
   Leaf,
+  Warehouse,
+  UserCheck,
+  ShoppingCart,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrandingSafe } from '../contexts/BrandingContext';
@@ -54,6 +57,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/lancamentos', label: 'Lançamentos', icon: ClipboardList, module: 'launches', action: 'view' },
     { to: '/produtos', label: 'Produtos', icon: Boxes, module: 'products', action: 'view' },
     { to: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'suppliers', action: 'view' },
+    { to: '/docas', label: 'Docas', icon: Warehouse, module: 'products', action: 'view' },
+    { to: '/conferentes', label: 'Conferentes', icon: UserCheck, module: 'products', action: 'view' },
+    { to: '/compradores', label: 'Compradores', icon: ShoppingCart, module: 'products', action: 'view' },
     { to: '/relatorios', label: 'Relatórios', icon: FileText, module: 'reports', action: 'view' },
     { to: '/usuarios', label: 'Usuários', icon: Users, module: 'users', action: 'view' },
     { to: '/configuracoes', label: 'Configurações', icon: Settings, module: 'settings', action: 'view' },

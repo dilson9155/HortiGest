@@ -15,7 +15,9 @@ export const GET = handler(async (req) => {
   const productId = url.searchParams.get('productId');
   const supplierId = url.searchParams.get('supplierId');
 
-  const launchWhere: any = { status: 'CONFIRMADO' };
+  const launchWhere: any = {
+    items: { some: { status: 'RECEBIDO' } },
+  };
   if (startDate || endDate) {
     launchWhere.referenceDate = {};
     if (startDate) {
@@ -27,44 +29,41 @@ export const GET = handler(async (req) => {
       if (!isNaN(d.getTime())) launchWhere.referenceDate.lte = d;
     }
   }
-  const itemWhere: any = { launch: launchWhere };
+  const itemWhere: any = { launch: launchWhere, status: 'RECEBIDO' };
   if (productId) itemWhere.productId = productId;
   if (supplierId) itemWhere.supplierId = supplierId;
 
   const [agg, launchesCount] = await Promise.all([
     prisma.launchItem.aggregate({
-      _sum: { received: true, produced: true, broken: true, missing: true },
+      _sum: { forecast: true, received: true },
       _count: { id: true },
       where: itemWhere,
     }),
     prisma.launch.count({ where: launchWhere }),
   ]);
 
+  const forecast = Number(agg._sum.forecast ?? 0);
   const received = Number(agg._sum.received ?? 0);
-  const produced = Number(agg._sum.produced ?? 0);
-  const broken = Number(agg._sum.broken ?? 0);
-  const missing = Number(agg._sum.missing ?? 0);
+  const delta = received - forecast;
   const items = agg._count.id;
 
   const percent = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 
   const cards = {
+    totalForecastBoxes: Number(forecast.toFixed(3)),
     totalReceivedBoxes: Number(received.toFixed(3)),
-    totalProducedBoxes: Number(produced.toFixed(3)),
-    totalBrokenBoxes: Number(broken.toFixed(3)),
-    totalMissingBoxes: Number(missing.toFixed(3)),
+    totalDeltaBoxes: Number(delta.toFixed(3)),
     totalLaunchItems: items,
     totalLaunches: launchesCount,
-    aproveitamentoPercent: Number(percent(produced, received).toFixed(2)),
-    quebraPercent: Number(percent(broken, received).toFixed(2)),
-    faltaPercent: Number(percent(missing, received).toFixed(2)),
+    atendimentoPercent: Number(percent(received, forecast).toFixed(2)),
+    deltaPercent: Number(percent(delta, forecast).toFixed(2)),
   };
 
-  // Produção por dia
+  // Recebimento por dia
   const grouped = await prisma.launchItem.groupBy({
     by: ['launchId'],
     where: itemWhere,
-    _sum: { received: true, produced: true, broken: true, missing: true },
+    _sum: { forecast: true, received: true },
   });
   const launches = await prisma.launch.findMany({ where: launchWhere, select: { id: true, referenceDate: true } });
   const launchMap = new Map(launches.map((l) => [l.id, l.referenceDate]));
@@ -73,11 +72,10 @@ export const GET = handler(async (req) => {
     const date = launchMap.get(g.launchId);
     if (!date) continue;
     const k = date.toISOString().slice(0, 10);
-    const cur = dailyMap.get(k) ?? { date: k, received: 0, produced: 0, broken: 0, missing: 0 };
+    const cur = dailyMap.get(k) ?? { date: k, forecast: 0, received: 0, delta: 0 };
+    cur.forecast += Number(g._sum.forecast ?? 0);
     cur.received += Number(g._sum.received ?? 0);
-    cur.produced += Number(g._sum.produced ?? 0);
-    cur.broken += Number(g._sum.broken ?? 0);
-    cur.missing += Number(g._sum.missing ?? 0);
+    cur.delta += Number(g._sum.received ?? 0) - Number(g._sum.forecast ?? 0);
     dailyMap.set(k, cur);
   }
   const productionDaily = [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -86,8 +84,8 @@ export const GET = handler(async (req) => {
   const byProduct = await prisma.launchItem.groupBy({
     by: ['productId'],
     where: itemWhere,
-    _sum: { received: true, produced: true, broken: true, missing: true },
-    orderBy: { _sum: { broken: 'desc' } },
+    _sum: { forecast: true, received: true },
+    orderBy: { _sum: { received: 'desc' } },
     take: 20,
   });
   const products = await prisma.product.findMany({
@@ -98,17 +96,16 @@ export const GET = handler(async (req) => {
   const productChart = byProduct.map((p) => ({
     productId: p.productId,
     productName: pMap.get(p.productId) ?? '—',
+    forecast: Number(p._sum.forecast ?? 0),
     received: Number(p._sum.received ?? 0),
-    produced: Number(p._sum.produced ?? 0),
-    broken: Number(p._sum.broken ?? 0),
-    missing: Number(p._sum.missing ?? 0),
+    delta: Number(p._sum.received ?? 0) - Number(p._sum.forecast ?? 0),
   }));
 
   // Por fornecedor
   const bySupplier = await prisma.launchItem.groupBy({
     by: ['supplierId'],
     where: itemWhere,
-    _sum: { received: true, produced: true, broken: true, missing: true },
+    _sum: { forecast: true, received: true },
     orderBy: { _sum: { received: 'desc' } },
     take: 20,
   });
@@ -120,18 +117,20 @@ export const GET = handler(async (req) => {
   const supplierChart = bySupplier.map((p) => ({
     supplierId: p.supplierId,
     supplierName: sMap.get(p.supplierId) ?? '—',
+    forecast: Number(p._sum.forecast ?? 0),
     received: Number(p._sum.received ?? 0),
-    produced: Number(p._sum.produced ?? 0),
-    broken: Number(p._sum.broken ?? 0),
-    missing: Number(p._sum.missing ?? 0),
+    delta: Number(p._sum.received ?? 0) - Number(p._sum.forecast ?? 0),
   }));
 
-  // Lançamentos recentes
   const recent = await prisma.launch.findMany({
     where: launchWhere,
     orderBy: { createdAt: 'desc' },
     take: 10,
-    include: { items: true, user: { select: { id: true, name: true, username: true } } },
+    include: {
+      items: { where: { status: 'RECEBIDO' } },
+      user: { select: { id: true, name: true, username: true } },
+      dock: { select: { name: true } },
+    },
   });
 
   return { cards, productionDaily, productChart, supplierChart, recent };

@@ -5,6 +5,7 @@
 //   - users / roles / permissions / role_permissions
 //   - fornecedores (suppliers)
 //   - produtos (products) com peso padrão da caixa
+//   - docas / conferentes / compradores (cadastros de recebimento)
 //   - lancamentos (daily entries) + itens (entrada por produto)
 //   - system_settings (configurações chave/valor)
 //   - audit_logs (auditoria)
@@ -35,6 +36,14 @@ enum RoleKind {
 enum LaunchStatus {
   PREVISTO
   CONFIRMADO
+}
+
+// Situação de cada item do lançamento:
+//  PREVISTO = aguardando recebimento (fica na tela de Lançamentos)
+//  RECEBIDO = conferido, com horário de entrada (vai para "Produtos recebidos")
+enum LaunchItemStatus {
+  PREVISTO
+  RECEBIDO
 }
 
 model Role {
@@ -122,6 +131,52 @@ model Product {
 }
 
 // ============================================================
+//  CADASTROS DE RECEBIMENTO
+// ============================================================
+
+model Dock {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  launches  Launch[]
+
+  @@index([name])
+  @@index([active])
+  @@map("docks")
+}
+
+model Conferente {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  launches  Launch[]
+
+  @@index([name])
+  @@index([active])
+  @@map("conferentes")
+}
+
+model Comprador {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  launches  Launch[]
+
+  @@index([name])
+  @@index([active])
+  @@map("compradores")
+}
+
+// ============================================================
 //  LANÇAMENTOS DIÁRIOS
 // ============================================================
 //  Um Launch agrupa todos os produtos lançados em uma data por um usuário.
@@ -132,6 +187,18 @@ model Launch {
   referenceDate DateTime   @db.Date          // Data do lançamento (dia)
   status      LaunchStatus @default(CONFIRMADO)
   notes        String?
+
+  // Docа, conferente e comprador do recebimento (snapshots preservam histórico).
+  dockId        String?
+  dock          Dock?        @relation(fields: [dockId], references: [id], onDelete: SetNull)
+  dockName      String?
+  conferenteId  String?
+  conferente    Conferente?  @relation(fields: [conferenteId], references: [id], onDelete: SetNull)
+  conferenteName String?
+  compradorId   String?
+  comprador     Comprador?   @relation(fields: [compradorId], references: [id], onDelete: SetNull)
+  compradorName String?
+
   userId       String
   user         User         @relation(fields: [userId], references: [id])
   createdAt    DateTime     @default(now())
@@ -142,6 +209,9 @@ model Launch {
   @@index([referenceDate])
   @@index([status])
   @@index([userId])
+  @@index([dockId])
+  @@index([conferenteId])
+  @@index([compradorId])
   @@map("launches")
 }
 
@@ -159,13 +229,23 @@ model LaunchItem {
   supplierName String
   // Snapshot do peso padrão da caixa no momento do lançamento.
   boxKg        Decimal  @db.Decimal(10, 3)
-  // Quantidades em CAIXAS (decimal para permitir fracionamento).
+
+  // PREVISTO = aguardando recebimento / RECEBIDO = conferido com horário.
+  status       LaunchItemStatus @default(PREVISTO)
+  // Previsão informada pelo comprador.
+  forecast     Decimal  @default(0) @db.Decimal(14, 3)
+  // Quantidade que realmente chegou (informada pelo conferente).
   received     Decimal  @default(0) @db.Decimal(14, 3)
+  // Horário de entrada de cada produto (HH:mm). Obrigatório ao receber.
+  entryTime    String?
+  // Observações do conferente sobre o produto recebido.
+  notes        String?
+
+  // Colunas legadas mantidas apenas para compatibilidade com o banco existente.
+  // Não são usadas na UI, relatórios nem no fluxo novo.
   produced     Decimal  @default(0) @db.Decimal(14, 3)
   broken       Decimal  @default(0) @db.Decimal(14, 3)
-  // Falta = recebido - produzido - quebrado. Calculada no backend.
   missing      Decimal  @default(0) @db.Decimal(14, 3)
-  notes        String?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -174,6 +254,8 @@ model LaunchItem {
   @@index([productId])
   @@index([supplierId])
   @@index([launchId, productId, supplierId])
+  @@index([status])
+  @@index([entryTime])
   @@map("launch_items")
 }
 

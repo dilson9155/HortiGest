@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, RefreshCw, Trash2, Edit3, Scale, Truck, Boxes, Package, History } from 'lucide-react';
+import { Plus, Search, RefreshCw, Trash2, Edit3, Scale, Truck, Boxes, Package, History, Warehouse, UserCheck, ShoppingCart } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { useToast } from '../hooks/useToast';
@@ -13,11 +13,36 @@ import Toggle from '../components/Toggle';
 
 type Product = { id: string; name: string; defaultBoxKg: number; active: boolean; createdAt: string };
 type Supplier = { id: string; name: string; active: boolean; createdAt: string };
+type CadastroKind = 'products' | 'suppliers' | 'docks' | 'conferentes' | 'compradores';
 
-export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers' }) {
+const REGISTRY_LABELS: Record<Exclude<CadastroKind, 'products' | 'suppliers'>, { title: string; singular: string; description: string }> = {
+  docks: {
+    title: 'Docas',
+    singular: 'docа',
+    description: 'Cadastre as docas de recebimento. A docа é escolhida uma vez por lançamento.',
+  },
+  conferentes: {
+    title: 'Conferentes',
+    singular: 'conferente',
+    description: 'Cadastre os conferentes que informam a quantidade recebida e o horário de entrada.',
+  },
+  compradores: {
+    title: 'Compradores',
+    singular: 'comprador',
+    description: 'Cadastre os compradores que informam a previsão de quantidade de mercadorias.',
+  },
+};
+
+export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
   const { can } = useAuth();
   const { toast } = useToast();
   const isProduct = kind === 'products';
+  const isRegistry = kind === 'docks' || kind === 'conferentes' || kind === 'compradores';
+  const endpoint = isRegistry ? `/registries/${kind}` : `/${kind}`;
+  const permModule = isRegistry ? 'products' : kind;
+  const labels = isRegistry
+    ? REGISTRY_LABELS[kind]
+    : { title: isProduct ? 'Produtos' : 'Fornecedores', singular: isProduct ? 'produto' : 'fornecedor', description: '' };
 
   const [items, setItems] = useState<(Product | Supplier)[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +69,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
       page: String(p),
       pageSize: String(pageSize),
     });
-    const r = await api.get(`/${kind}?${qs.toString()}`);
+    const r = await api.get(`${endpoint}?${qs.toString()}`);
     setLoading(false);
     if (r.ok) {
       setItems(r.data.items);
@@ -80,8 +105,8 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
     if (isProduct) body.defaultBoxKg = Number(weight);
 
     const r = editing
-      ? await api.put(`/${kind}/${editing.id}`, body)
-      : await api.post(`/${kind}`, body);
+      ? await api.put(`${endpoint}/${editing.id}`, body)
+      : await api.post(endpoint, body);
 
     if (r.ok) {
       toast('success', editing ? 'Cadastro atualizado.' : 'Cadastro criado.');
@@ -93,7 +118,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
   }
 
   async function toggle(item: Product | Supplier) {
-    const r = await api.post(`/${kind}/${item.id}/toggle`, { active: !item.active });
+    const r = await api.post(`${endpoint}/${item.id}/toggle`, { active: !item.active });
     if (r.ok) {
       toast('success', `Cadastro ${!item.active ? 'ativado' : 'inativado'}.`);
       load(page);
@@ -105,7 +130,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
   async function del(id: string) {
     setConfirmDelId(null);
     // Não há delete físico — em vez disso inativa
-    const r = await api.post(`/${kind}/${id}/toggle`, { active: false });
+    const r = await api.post(`${endpoint}/${id}/toggle`, { active: false });
     if (r.ok) {
       toast('success', 'Cadastro inativado.');
       load(page);
@@ -114,19 +139,21 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
     }
   }
 
-  const canCreate = can(kind, 'create');
-  const canEdit = can(kind, 'edit');
+  const canCreate = can(permModule, 'create');
+  const canEdit = can(permModule, 'edit');
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="space-y-4">
       <SectionCard
-        title={isProduct ? 'Produtos' : 'Fornecedores'}
+        title={labels.title}
         description={
-          isProduct
-            ? 'Cadastre produtos informando o peso padrão da caixa. Esse peso é usado nos relatórios e na conversão para quilogramas.'
-            : 'Cadastre os fornecedores de hortifrúti. Fornecedores inativos não aparecem para novos lançamentos.'
+          isRegistry
+            ? labels.description
+            : isProduct
+              ? 'Cadastre produtos informando o peso padrão da caixa. Esse peso é usado nos relatórios e na conversão para quilogramas.'
+              : 'Cadastre os fornecedores de hortifrúti. Fornecedores inativos não aparecem para novos lançamentos.'
         }
         actions={
           <>
@@ -142,7 +169,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
               <RefreshCw size={14} /> Atualizar
             </Button>
             <Button onClick={openCreate} disabled={!canCreate}>
-              <Plus size={14} /> {isProduct ? 'Novo produto' : 'Novo fornecedor'}
+              <Plus size={14} /> Novo {labels.singular}
             </Button>
           </>
         }
@@ -164,7 +191,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-slate-500 border-b">
               <tr>
-                <th className="py-2">{isProduct ? 'Produto' : 'Fornecedor'}</th>
+                <th className="py-2">{labels.singular.charAt(0).toUpperCase() + labels.singular.slice(1)}</th>
                 {isProduct && <th>Peso da caixa</th>}
                 <th>Situação</th>
                 <th className="text-right">Ações</th>
@@ -212,7 +239,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
               {!loading && items.length === 0 && (
                 <tr>
                   <td colSpan={isProduct ? 4 : 3} className="p-6 text-center text-slate-500">
-                    {isProduct ? <Package className="mx-auto mb-2 text-slate-300" /> : <Truck className="mx-auto mb-2 text-slate-300" />}
+                    {isProduct ? <Package className="mx-auto mb-2 text-slate-300" /> : kind === 'suppliers' ? <Truck className="mx-auto mb-2 text-slate-300" /> : kind === 'docks' ? <Warehouse className="mx-auto mb-2 text-slate-300" /> : kind === 'conferentes' ? <UserCheck className="mx-auto mb-2 text-slate-300" /> : <ShoppingCart className="mx-auto mb-2 text-slate-300" />}
                     Nenhum registro.
                   </td>
                 </tr>
@@ -270,7 +297,7 @@ export default function CadastrosPage({ kind }: { kind: 'products' | 'suppliers'
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar' : 'Novo cadastro'}>
         <div className="space-y-3">
           <Input
-            label={isProduct ? 'Nome do produto' : 'Nome do fornecedor'}
+            label={`Nome do ${labels.singular}`}
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus

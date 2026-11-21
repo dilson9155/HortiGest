@@ -127,7 +127,7 @@ export default function SearchSelect({
   return (
     <div className={clsx('relative', className)} ref={containerRef}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-700 mb-1">
+        <label className="block text-sm font-semibold text-slate-700 mb-1">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
@@ -152,7 +152,7 @@ export default function SearchSelect({
           onFocus={(e) => e.currentTarget.select()}
           placeholder={placeholder}
           className={clsx(
-            'w-full h-11 pl-10 pr-10 text-sm rounded-lg border-2 bg-white',
+            'w-full h-11 pl-10 pr-10 text-base rounded-lg border-2 bg-white',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
             'placeholder:text-slate-400',
             error ? 'border-red-300' : 'border-slate-200',
@@ -179,7 +179,7 @@ export default function SearchSelect({
           {filtered.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-slate-500">
               {emptyLabel}
-              <div className="mt-1 text-xs">
+              <div className="mt-1 text-sm">
                 para "<span className="font-semibold text-slate-700">{query}</span>"
               </div>
             </div>
@@ -213,7 +213,7 @@ export default function SearchSelect({
                         {it.label}
                       </span>
                       {metaText && (
-                        <span className="ml-2 text-xs text-slate-400 truncate">{metaText}</span>
+                        <span className="ml-2 text-sm text-slate-400 truncate">{metaText}</span>
                       )}
                     </div>
                   </li>
@@ -224,7 +224,7 @@ export default function SearchSelect({
         </div>
       )}
 
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
