@@ -156,7 +156,7 @@ export default function SearchSelect({
           title={open ? undefined : selected?.label ?? placeholder}
           className={clsx(
             'w-full pr-10 rounded-lg border-2 bg-white',
-            compact ? 'h-8 pl-8 text-xs' : 'h-11 pl-10 text-base',
+            compact ? 'h-9 pl-9 text-sm' : 'h-11 pl-10 text-base',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
             'placeholder:text-slate-400',
             error ? 'border-red-300' : 'border-slate-200',
