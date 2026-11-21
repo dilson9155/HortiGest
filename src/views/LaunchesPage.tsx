@@ -84,6 +84,8 @@ export default function LaunchesPage() {
   const [dockId, setDockId] = useState('');
   const [compradorId, setCompradorId] = useState('');
   const [conferenteId, setConferenteId] = useState('');
+  const [compradorName, setCompradorName] = useState('');
+  const [conferenteName, setConferenteName] = useState('');
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [editingLaunchId, setEditingLaunchId] = useState<string | null>(null);
@@ -240,12 +242,12 @@ export default function LaunchesPage() {
       toast('warning', 'Adicione ao menos um produto com fornecedor selecionado.');
       return;
     }
-    if (!compradorId) {
-      toast('warning', 'Selecione o comprador que informou a previsão.');
+    if (!compradorName.trim()) {
+      toast('warning', 'Informe o nome do comprador que informou a previsão.');
       return;
     }
-    if (!conferenteId) {
-      toast('warning', 'Selecione o conferente que recebeu a mercadoria.');
+    if (!conferenteName.trim()) {
+      toast('warning', 'Informe o nome do conferente que recebeu a mercadoria.');
       return;
     }
 
@@ -278,6 +280,8 @@ export default function LaunchesPage() {
       dockId: dockId || null,
       compradorId: compradorId || null,
       conferenteId: conferenteId || null,
+      compradorName: compradorName.trim() || null,
+      conferenteName: conferenteName.trim() || null,
       items: valid.map((r) => ({
         productId: r.productId,
         supplierId: r.supplierId,
@@ -315,12 +319,14 @@ export default function LaunchesPage() {
     setDockId('');
     setCompradorId('');
     setConferenteId('');
+    setCompradorName('');
+    setConferenteName('');
     setEditingLaunchId(null);
     setConfirmClear(false);
   }
 
   function clearForm() {
-    const dirty = rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes);
+    const dirty = rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes) || !!compradorName.trim() || !!conferenteName.trim();
     if (dirty) {
       setConfirmClear(true);
       return;
@@ -338,6 +344,8 @@ export default function LaunchesPage() {
     setDockId(full.dockId ?? '');
     setCompradorId(full.compradorId ?? '');
     setConferenteId(full.conferenteId ?? '');
+    setCompradorName(full.compradorName ?? full.comprador?.name ?? '');
+    setConferenteName(full.conferenteName ?? full.conferente?.name ?? '');
     setRows(
       (full.items ?? []).map((it: any) => ({
         _key: it.id,
@@ -368,11 +376,11 @@ export default function LaunchesPage() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes)) e.preventDefault();
+      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes) || !!compradorName.trim() || !!conferenteName.trim()) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [rows]);
+  }, [rows, compradorName, conferenteName]);
 
   const receivedFlat = useMemo(
     () =>
@@ -451,13 +459,53 @@ export default function LaunchesPage() {
             <label className="label">Docа de recebimento</label>
             <SearchSelect items={dockOptions} value={dockId} onChange={setDockId} icon={<Warehouse size={17} />} placeholder="Buscar docа..." emptyLabel="Nenhuma docа cadastrada" />
           </div>
-          <div>
-            <label className="label">Comprador (previsão)</label>
-            <SearchSelect items={compradorOptions} value={compradorId} onChange={setCompradorId} placeholder="Buscar comprador..." emptyLabel="Nenhum comprador cadastrado" />
+          <div className="space-y-2">
+            <label className="label">Comprador (cadastro)</label>
+            <SearchSelect
+              items={compradorOptions}
+              value={compradorId}
+              onChange={(id) => {
+                setCompradorId(id);
+                const found = compradores.find((c) => c.id === id);
+                if (found) setCompradorName(found.name);
+              }}
+              placeholder="Buscar comprador..."
+              emptyLabel="Nenhum comprador cadastrado"
+            />
+            <Input
+              label="Nome do comprador no lançamento"
+              value={compradorName}
+              onChange={(e) => {
+                setCompradorName(e.target.value);
+                setCompradorId('');
+              }}
+              placeholder="Digite o nome de quem informou a previsão"
+              className="!h-12 !text-base"
+            />
           </div>
-          <div>
-            <label className="label">Conferente (recebimento)</label>
-            <SearchSelect items={conferenteOptions} value={conferenteId} onChange={setConferenteId} placeholder="Buscar conferente..." emptyLabel="Nenhum conferente cadastrado" />
+          <div className="space-y-2">
+            <label className="label">Conferente (cadastro)</label>
+            <SearchSelect
+              items={conferenteOptions}
+              value={conferenteId}
+              onChange={(id) => {
+                setConferenteId(id);
+                const found = conferentes.find((c) => c.id === id);
+                if (found) setConferenteName(found.name);
+              }}
+              placeholder="Buscar conferente..."
+              emptyLabel="Nenhum conferente cadastrado"
+            />
+            <Input
+              label="Nome do conferente no lançamento"
+              value={conferenteName}
+              onChange={(e) => {
+                setConferenteName(e.target.value);
+                setConferenteId('');
+              }}
+              placeholder="Digite o nome de quem recebeu a mercadoria"
+              className="!h-12 !text-base"
+            />
           </div>
           <div className="sm:col-span-2">
             <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional..." className="!h-12 !text-base" />

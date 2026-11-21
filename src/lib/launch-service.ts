@@ -13,6 +13,9 @@ export const launchSchema = z.object({
   dockId: z.string().min(1).optional().nullable(),
   conferenteId: z.string().min(1).optional().nullable(),
   compradorId: z.string().min(1).optional().nullable(),
+  // Nomes informados diretamente no lançamento (prevalecem sobre o cadastro).
+  conferenteName: z.string().trim().max(120).optional().nullable(),
+  compradorName: z.string().trim().max(120).optional().nullable(),
   items: z
     .array(
       z.object({
@@ -137,10 +140,22 @@ export async function resolveReceivingRefs(tx: any, payload: LaunchPayload) {
     return row.name as string;
   };
 
+  const conferenteCadastrado = await check(payload.conferenteId, 'conferente', 'Conferente');
+  const compradorCadastrado = await check(payload.compradorId, 'comprador', 'Comprador');
+
+  const conferenteName = payload.conferenteName?.trim() || conferenteCadastrado;
+  const compradorName = payload.compradorName?.trim() || compradorCadastrado;
+  if (!compradorName) {
+    throw new HttpError(400, 'COMPRADOR_OBRIGATORIO', 'Informe o nome do comprador do lançamento.');
+  }
+  if (!conferenteName) {
+    throw new HttpError(400, 'CONFERENTE_OBRIGATORIO', 'Informe o nome do conferente do lançamento.');
+  }
+
   return {
     dockName: await check(payload.dockId, 'dock', 'Docа'),
-    conferenteName: await check(payload.conferenteId, 'conferente', 'Conferente'),
-    compradorName: await check(payload.compradorId, 'comprador', 'Comprador'),
+    conferenteName,
+    compradorName,
   };
 }
 
