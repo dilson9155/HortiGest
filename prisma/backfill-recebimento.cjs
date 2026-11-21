@@ -12,7 +12,7 @@ async function main() {
        SET status = 'RECEBIDO'::"LaunchItemStatus",
            forecast = received
      WHERE status = 'PREVISTO'::"LaunchItemStatus"
-       AND launch_id IN (
+       AND "launchId" IN (
          SELECT id FROM launches WHERE status = 'CONFIRMADO'::"LaunchStatus"
        )
   `;
