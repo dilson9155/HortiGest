@@ -314,15 +314,15 @@ export default function ReceivedPage() {
                     <tr key={it.id} className={clsx('border-b border-slate-100', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-emerald-50')}>
                       <td className="py-3 px-3 font-semibold whitespace-nowrap">{dateBR(it.referenceDate)}</td>
                       <td className="py-3 px-3 font-bold text-brand-700 whitespace-nowrap"><span className="inline-flex items-center gap-1"><Clock3 size={15} />{it.entryTime ?? '—'}</span></td>
-                      <td className="py-3 px-3 font-medium">{it.productName}</td>
-                      <td className="py-3 px-3 text-slate-600">{it.supplierName}</td>
+                      <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[200px] leading-snug" title={it.productName}>{it.productName}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[180px] leading-snug" title={it.supplierName}>{it.supplierName}</td>
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
                       <td className="py-3 px-3 text-right font-bold text-emerald-700">{brNum(Number(it.received), 0)}</td>
                       <td className="py-3 px-3 text-right font-bold text-purple-700" title="Informado à mão — base de pagamento ao fornecedor">{brNum(Number(it.rendimento), 0)}</td>
                       <td className={clsx('py-3 px-3 text-right font-bold', it.delta > 0 ? 'text-red-700' : it.delta < 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</td>
-                      <td className="py-3 px-3 text-slate-600">{it.dockName}</td>
-                      <td className="py-3 px-3 text-slate-600">{it.conferenteName}</td>
-                      <td className="py-3 px-3 text-slate-600">{it.compradorName}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.conferenteName}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.compradorName}</td>
                       <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                       <td className="py-3 px-3 text-right">
                         {can('launches', 'edit') && (
@@ -354,8 +354,8 @@ export default function ReceivedPage() {
                 <div key={it.id} className="card p-4 border border-slate-200">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-bold text-lg text-slate-800">{it.productName}</div>
-                      <div className="text-sm text-slate-600">
+                      <div className="font-bold text-base text-slate-800 break-words leading-snug" title={it.productName}>{it.productName}</div>
+                      <div className="text-xs text-slate-600 break-words">
                         {it.supplierName} · {dateBR(it.referenceDate)} · <b>{it.entryTime ?? '—'}</b>
                       </div>
                     </div>
@@ -371,8 +371,8 @@ export default function ReceivedPage() {
                     <div><div className="text-xs text-slate-500 uppercase">Rendimento</div><div className="font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</div></div>
                     <div><div className="text-xs text-slate-500 uppercase">Delta</div><div className={clsx('font-bold', it.delta > 0 ? 'text-red-700' : it.delta < 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</div></div>
                   </div>
-                  <div className="text-sm text-slate-600 mt-2"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName} · <b>Comprador:</b> {it.compradorName}</div>
-                  {it.notes && <div className="text-sm text-slate-600 mt-1"><b>Observações:</b> {it.notes}</div>}
+                  <div className="text-xs text-slate-600 mt-2 break-words"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName} · <b>Comprador:</b> {it.compradorName}</div>
+                  {it.notes && <div className="text-xs text-slate-600 mt-1 break-words"><b>Observações:</b> {it.notes}</div>}
                 </div>
               ))}
               {totals && (

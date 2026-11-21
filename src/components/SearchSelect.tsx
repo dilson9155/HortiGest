@@ -151,6 +151,7 @@ export default function SearchSelect({
           onKeyDown={onKeyDown}
           onFocus={(e) => e.currentTarget.select()}
           placeholder={placeholder}
+          title={open ? undefined : selected?.label ?? placeholder}
           className={clsx(
             'w-full h-11 pl-10 pr-10 text-base rounded-lg border-2 bg-white',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition',
@@ -198,7 +199,7 @@ export default function SearchSelect({
                     onMouseEnter={() => setActiveIdx(idx)}
                     onClick={() => !it.disabled && choose(it.id)}
                     className={clsx(
-                      'flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer select-none transition',
+                      'flex items-start justify-between px-3 py-2.5 text-sm cursor-pointer select-none transition',
                       isActive && 'bg-brand-50',
                       !isActive && 'hover:bg-slate-50',
                       it.disabled && 'opacity-50 cursor-not-allowed',
@@ -209,11 +210,11 @@ export default function SearchSelect({
                         size={16}
                         className={clsx('shrink-0', isSel ? 'text-brand-600' : 'text-transparent')}
                       />
-                      <span className={clsx('truncate', isSel && 'font-semibold text-brand-700')}>
+                      <span className={clsx('break-words leading-snug', isSel && 'font-semibold text-brand-700')}>
                         {it.label}
                       </span>
                       {metaText && (
-                        <span className="ml-2 text-sm text-slate-400 truncate">{metaText}</span>
+                        <span className="ml-2 text-xs text-slate-400 break-words">{metaText}</span>
                       )}
                     </div>
                   </li>

@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -19,6 +19,8 @@ import {
   Send,
   Warehouse,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
@@ -98,6 +100,7 @@ export default function LaunchesPage() {
 
   const [pending, setPending] = useState<any[]>([]);
   const [received, setReceived] = useState<any[]>([]);
+  const [collapsedSuppliers, setCollapsedSuppliers] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -403,6 +406,56 @@ export default function LaunchesPage() {
       ),
     [pending],
   );
+
+  // Agrupa as entradas pendentes por fornecedor para facilitar a identificação.
+  const pendingBySupplier = useMemo(() => {
+    const groups = new Map<string, { key: string; name: string; items: any[]; totalForecast: number }>();
+    for (const it of pendingFlat) {
+      const key = it.supplierId || '__sem_fornecedor__';
+      const name = it.supplierName || 'Sem fornecedor informado';
+      if (!groups.has(key)) groups.set(key, { key, name, items: [], totalForecast: 0 });
+      const group = groups.get(key)!;
+      group.items.push(it);
+      group.totalForecast += Number(it.forecast ?? 0);
+    }
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [pendingFlat]);
+
+  function toggleSupplier(key: string) {
+    setCollapsedSuppliers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function SupplierGroupHeader({ group }: { group: { key: string; name: string; items: any[]; totalForecast: number } }) {
+    const collapsed = collapsedSuppliers.has(group.key);
+    return (
+      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b-2 border-brand-100">
+        <button
+          type="button"
+          onClick={() => toggleSupplier(group.key)}
+          className="flex items-start gap-2 min-w-0 text-left group"
+          title={collapsed ? 'Expandir fornecedor' : 'Recolher fornecedor'}
+        >
+          {collapsed ? <ChevronRight size={18} className="mt-0.5 shrink-0 text-brand-600" /> : <ChevronDown size={18} className="mt-0.5 shrink-0 text-brand-600" />}
+          <Truck size={18} className="mt-0.5 shrink-0 text-brand-600" />
+          <span className="min-w-0">
+            <span className="block text-sm sm:text-base font-bold text-slate-900 break-words leading-snug group-hover:text-brand-700" title={group.name}>
+              {group.name}
+            </span>
+            <span className="block text-xs text-slate-500">{group.items.length} entrada(s) neste fornecedor</span>
+          </span>
+        </button>
+        <div className="shrink-0 text-right pl-2">
+          <div className="text-[11px] uppercase tracking-wide text-slate-500">Previsão total</div>
+          <div className="text-lg font-bold text-brand-700">{brNum(group.totalForecast, 0)}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-7 max-w-[1500px] mx-auto">
@@ -727,7 +780,6 @@ export default function LaunchesPage() {
               <tr className="border-b border-slate-200">
                 <th className="py-3 px-3">Data</th>
                 <th className="py-3 px-3">Produto</th>
-                <th className="py-3 px-3">Fornecedor</th>
                 <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
                 <th className="py-3 px-3">Comprador</th>
@@ -737,35 +789,43 @@ export default function LaunchesPage() {
               </tr>
             </thead>
             <tbody>
-              {pendingFlat.map((it: any) => (
-                <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
-                  <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                  <td className="py-3 px-3 font-medium">{it.productName}</td>
-                  <td className="py-3 px-3 text-slate-600">{it.supplierName}</td>
-                  <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
-                  <td className="py-3 px-3 text-slate-600">{it.launch.dockName ?? '—'}</td>
-                  <td className="py-3 px-3 text-slate-600">{it.launch.compradorName ?? '—'}</td>
-                  <td className="py-3 px-3 text-slate-600">{it.launch.conferenteName ?? '—'}</td>
-                  <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
-                  <td className="py-3 px-3 text-right">
-                    <div className="inline-flex gap-1">
-                      {canEdit && (
-                        <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
-                          <Pencil size={17} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
-                          <Trash2 size={17} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+              {pendingBySupplier.map((group) => (
+                <Fragment key={group.key}>
+                  <tr className="bg-slate-50 border-b-2 border-brand-100">
+                    <td colSpan={8} className="p-0">
+                      <SupplierGroupHeader group={group} />
+                    </td>
+                  </tr>
+                  {!collapsedSuppliers.has(group.key) && group.items.map((it: any) => (
+                    <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
+                      <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
+                      <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[220px] max-w-[320px] leading-snug" title={it.productName ?? ''}>{it.productName}</td>
+                      <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.launch.dockName ?? '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.launch.compradorName ?? ''}>{it.launch.compradorName ?? '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.launch.conferenteName ?? ''}>{it.launch.conferenteName ?? '—'}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="inline-flex gap-1">
+                          {canEdit && (
+                            <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
+                              <Pencil size={17} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
+                              <Trash2 size={17} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
-              {pendingFlat.length === 0 && (
+              {pendingBySupplier.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-10 text-center text-slate-500">
+                  <td colSpan={8} className="p-10 text-center text-slate-500">
                     <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
                     <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
                   </td>
@@ -775,29 +835,39 @@ export default function LaunchesPage() {
           </table>
         </div>
 
-        <div className="xl:hidden space-y-3">
-          {pendingFlat.map((it: any) => (
-            <div key={it.id} className="rounded-xl border-2 border-slate-200 bg-white p-4 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-bold text-slate-800">{it.productName}</div>
-                  <div className="text-sm text-slate-600">{it.supplierName} · {isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</div>
+        <div className="xl:hidden space-y-4">
+          {pendingBySupplier.map((group) => (
+            <div key={group.key} className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
+              <SupplierGroupHeader group={group} />
+              {!collapsedSuppliers.has(group.key) && (
+                <div className="space-y-3 p-3">
+                  {group.items.map((it: any) => (
+                    <div key={it.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-800 text-sm break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
+                          <div className="text-xs text-slate-500">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md"><Pencil size={17} /></button>}
+                          {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center border-y border-slate-200 py-2">
+                        <div><div className="text-xs text-slate-500">Previsão</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
+                        <div><div className="text-xs text-slate-500">Docа</div><div className="font-bold text-slate-700 text-xs break-words">{it.launch.dockName ?? '—'}</div></div>
+                        <div><div className="text-xs text-slate-500">Situação</div><div className="font-bold text-brand-700">Aguardando</div></div>
+                      </div>
+                      <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.launch.compradorName ?? '—'}</div>
+                      <div className="text-xs text-slate-600 break-words"><b>Conferente:</b> {it.launch.conferenteName ?? '—'}</div>
+                      {it.notes && <div className="text-xs text-slate-600 break-words"><b>Observações:</b> {it.notes}</div>}
+                    </div>
+                  ))}
                 </div>
-                <div className="flex gap-1">
-                  {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md"><Pencil size={17} /></button>}
-                  {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center border-y border-slate-100 py-2">
-                <div><div className="text-xs text-slate-500">Previsão</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
-                <div><div className="text-xs text-slate-500">Docа</div><div className="font-bold text-slate-700 text-sm">{it.launch.dockName ?? '—'}</div></div>
-                <div><div className="text-xs text-slate-500">Situação</div><div className="font-bold text-brand-700">Aguardando</div></div>
-              </div>
-              <div className="text-sm text-slate-600"><b>Comprador:</b> {it.launch.compradorName ?? '—'} · <b>Conferente:</b> {it.launch.conferenteName ?? '—'}</div>
-              {it.notes && <div className="text-sm text-slate-600"><b>Observações:</b> {it.notes}</div>}
+              )}
             </div>
           ))}
-          {pendingFlat.length === 0 && (
+          {pendingBySupplier.length === 0 && (
             <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
               Nenhuma entrada pendente para os filtros informados.
             </div>
