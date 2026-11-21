@@ -619,93 +619,111 @@ export default function LaunchesPage() {
           </div>
         </div>
 
-        {/* Itens — cards compactos, dois blocos bem separados por responsável. */}
-        <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
-          {rows.map((r, idx) => {
-            const delta = deltaOf(r.forecast, r.received);
-            return (
-              <div key={r._key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="flex items-start gap-2 mb-2">
-                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-bold uppercase text-slate-600">
-                    Item {idx + 1}
-                  </span>
-                  <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <SearchSelect compact icon={<Package size={15} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Produto..." />
-                    <SearchSelect compact icon={<Truck size={15} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Fornecedor..." />
-                  </div>
-                  <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="shrink-0 p-1.5 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30" title="Remover item">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* 1) Previsão — comprador */}
-                  <section className="rounded-lg border border-sky-200 bg-sky-50/70 p-2.5 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-800">
-                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-600 text-[9px] text-white">1</span>
-                      Previsão — comprador
-                    </div>
-                    <Input label="Comprador" list="hl-compradores" value={r.compradorName} onChange={(e) => { setRow(idx, { compradorName: e.target.value, compradorId: '' }); }} placeholder="Nome do comprador" className="!h-8 !text-sm" />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="time" label="Horário previsto" value={r.forecastTime} onChange={(e) => setRow(idx, { forecastTime: e.target.value })} className="!h-8 !text-sm" />
-                      <Select label="Docа" value={r.dockId} onChange={(e) => setRow(idx, { dockId: e.target.value })} className="!h-8 !text-sm">
-                        <option value="">Selecione...</option>
+        {/* Tabela estilo planilha — todas as colunas visíveis, edição direta. */}
+        <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+          <table className="w-full border-collapse text-xs">
+            <thead className="sticky top-0 z-10">
+              {/* Grupos de colunas */}
+              <tr className="text-[10px] font-bold uppercase tracking-wide text-white">
+                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-1.5 py-1.5 text-left min-w-[150px]">Produto</th>
+                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-1.5 py-1.5 text-left min-w-[140px]">Fornecedor</th>
+                <th colSpan={4} className="border border-sky-800 bg-sky-700 px-1.5 py-1 text-center">Previsão — comprador</th>
+                <th colSpan={4} className="border border-emerald-800 bg-emerald-700 px-1.5 py-1 text-center">Recebimento — conferente</th>
+                <th colSpan={3} className="border border-slate-800 bg-slate-700 px-1.5 py-1 text-center">Resultado</th>
+                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-1.5 py-1.5 w-9" />
+              </tr>
+              <tr className="text-[10px] font-semibold text-slate-800">
+                <th className="border border-sky-200 bg-sky-100 px-1.5 py-1 text-left min-w-[120px]">Comprador</th>
+                <th className="border border-sky-200 bg-sky-100 px-1.5 py-1 min-w-[92px]">Hor. previsto</th>
+                <th className="border border-sky-200 bg-sky-100 px-1.5 py-1 min-w-[100px]">Docа</th>
+                <th className="border border-sky-200 bg-sky-100 px-1.5 py-1 min-w-[75px]">Previsão</th>
+                <th className="border border-emerald-200 bg-emerald-100 px-1.5 py-1 text-left min-w-[120px]">Conferente</th>
+                <th className="border border-emerald-200 bg-emerald-100 px-1.5 py-1 min-w-[92px]">Hor. lançamento</th>
+                <th className="border border-emerald-200 bg-emerald-100 px-1.5 py-1 min-w-[75px]">Recebido</th>
+                <th className="border border-emerald-200 bg-emerald-100 px-1.5 py-1 min-w-[75px]">Rendimento</th>
+                <th className="border border-slate-300 bg-slate-100 px-1.5 py-1 min-w-[60px]">Delta</th>
+                <th className="border border-slate-300 bg-slate-100 px-1.5 py-1 min-w-[88px]">Situação</th>
+                <th className="border border-slate-300 bg-slate-100 px-1.5 py-1 min-w-[140px]">Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, idx) => {
+                const delta = deltaOf(r.forecast, r.received);
+                return (
+                  <tr key={r._key} className={clsx(idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-brand-50/40')}>
+                    <td className="border border-slate-200 p-1 align-middle">
+                      <SearchSelect compact icon={<Package size={14} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Produto..." />
+                    </td>
+                    <td className="border border-slate-200 p-1 align-middle">
+                      <SearchSelect compact icon={<Truck size={14} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Fornecedor..." />
+                    </td>
+                    <td className="border border-sky-100 p-1 align-middle">
+                      <input list="hl-compradores" value={r.compradorName} onChange={(e) => setRow(idx, { compradorName: e.target.value, compradorId: '' })} placeholder="Nome" className="input !h-8 !text-xs !px-2" />
+                    </td>
+                    <td className="border border-sky-100 p-1 align-middle">
+                      <input type="time" value={r.forecastTime} onChange={(e) => setRow(idx, { forecastTime: e.target.value })} className="input !h-8 !text-xs !px-1.5" />
+                    </td>
+                    <td className="border border-sky-100 p-1 align-middle">
+                      <select value={r.dockId} onChange={(e) => setRow(idx, { dockId: e.target.value })} className="input !h-8 !text-xs !px-1.5">
+                        <option value="">—</option>
                         {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                      </Select>
-                    </div>
-                    <Input type="number" min="0" step="0.001" label="Previsão (cx)" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" />
-                  </section>
-
-                  {/* 2) Recebimento — conferente */}
-                  <section className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-800">
-                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] text-white">2</span>
-                      Recebimento — conferente
-                    </div>
-                    <Input label="Conferente" list="hl-conferentes" value={r.conferenteName} onChange={(e) => { setRow(idx, { conferenteName: e.target.value, conferenteId: '' }); }} placeholder="Nome do conferente" className="!h-8 !text-sm" />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="time" label="Horário do lançamento" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="!h-8 !text-sm" />
-                      <Select label="Situação" value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="!h-8 !text-sm">
+                      </select>
+                    </td>
+                    <td className="border border-sky-100 p-1 align-middle">
+                      <input type="number" min="0" step="0.001" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-xs !px-1.5 text-right" />
+                    </td>
+                    <td className="border border-emerald-100 p-1 align-middle">
+                      <input list="hl-conferentes" value={r.conferenteName} onChange={(e) => setRow(idx, { conferenteName: e.target.value, conferenteId: '' })} placeholder="Nome" className="input !h-8 !text-xs !px-2" />
+                    </td>
+                    <td className="border border-emerald-100 p-1 align-middle">
+                      <input type="time" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value, status: e.target.value ? 'RECEBIDO' : r.status })} className="input !h-8 !text-xs !px-1.5" />
+                    </td>
+                    <td className="border border-emerald-100 p-1 align-middle">
+                      <input type="number" min="0" step="0.001" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-xs !px-1.5 text-right" />
+                    </td>
+                    <td className="border border-emerald-100 p-1 align-middle">
+                      <input type="number" min="0" step="0.001" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-8 !text-xs !px-1.5 text-right" />
+                    </td>
+                    <td className={clsx('border border-slate-200 p-1 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
+                      {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
+                    </td>
+                    <td className="border border-slate-200 p-1 align-middle">
+                      <select value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="input !h-8 !text-xs !px-1.5">
                         <option value="PREVISTO">Previsão</option>
                         <option value="RECEBIDO">Recebido</option>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="number" min="0" step="0.001" label="Recebido (cx)" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" />
-                      <Input type="number" min="0" step="0.001" label="Rendimento" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-8 !text-sm" title="Informado à mão — base de pagamento do fornecedor" />
-                    </div>
-                  </section>
-                </div>
-
-                <div className="mt-2 flex items-end gap-3">
-                  <div className="flex-1">
-                    <Input label="Observações do item" value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="!h-8 !text-sm" />
-                  </div>
-                  <div className={clsx('shrink-0 pb-1 text-right text-sm font-bold', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
-                    Delta: {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      </select>
+                    </td>
+                    <td className="border border-slate-200 p-1 align-middle">
+                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-8 !text-xs !px-2" />
+                    </td>
+                    <td className="border border-slate-200 p-1 text-center align-middle">
+                      <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-30" title="Remover linha">
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold text-slate-800 bg-gradient-to-r from-sky-50 to-emerald-50">
+                <td colSpan={5} className="border border-slate-300 px-2 py-1.5 text-right uppercase text-[10px] tracking-wide">Totais</td>
+                <td className="border border-slate-300 px-1.5 py-1.5 text-right text-brand-700">{brNum(totals.forecast, 0)}</td>
+                <td colSpan={2} className="border border-slate-300" />
+                <td className="border border-slate-300 px-1.5 py-1.5 text-right text-emerald-700">{brNum(totals.received, 0)}</td>
+                <td className="border border-slate-300 px-1.5 py-1.5 text-right text-purple-700">{brNum(totals.rendimento, 0)}</td>
+                <td className="border border-slate-300 px-1.5 py-1.5 text-center">{deltaLabel(totals.delta)}</td>
+                <td colSpan={3} className="border border-slate-300" />
+              </tr>
+            </tfoot>
+          </table>
         </div>
 
-        <div className="mt-3 rounded-xl border border-brand-200 bg-brand-50 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Totais</span>
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-              <span className="text-slate-600">Previsão <b className="ml-1 text-brand-700">{brNum(totals.forecast, 0)}</b></span>
-              <span className="text-slate-600">Recebido <b className="ml-1 text-emerald-700">{brNum(totals.received, 0)}</b></span>
-              <span className="text-slate-600">Rendimento <b className="ml-1 text-purple-700">{brNum(totals.rendimento, 0)}</b></span>
-              <span className="text-slate-600">Delta <b className="ml-1 text-slate-800">{deltaLabel(totals.delta)}</b></span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 pt-5 border-t border-slate-100">
-          <button onClick={addRow} className="h-12 px-5 rounded-xl font-semibold text-base bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
-            <Plus size={19} /> Adicionar produto
+        <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+          <button onClick={addRow} className="h-9 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
+            <Plus size={16} /> Adicionar linha
           </button>
+          <span className="text-[11px] text-slate-500">Use <b>Tab</b> para percorrer as colunas. Cada linha mantém seus próprios responsáveis e horários.</span>
         </div>
       </section>
 
