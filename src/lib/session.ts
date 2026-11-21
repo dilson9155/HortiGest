@@ -91,3 +91,14 @@ export function requirePerm(session: SessionUser | null, module: Module, action:
     throw new HttpError(403, 'FORBIDDEN', `Sem permissão para "${action}" em "${module}".`);
   }
 }
+
+/** Lança HttpError se o usuário não tiver ao menos uma das permissões informadas. */
+export function requireAnyPerm(
+  session: SessionUser | null,
+  checks: Array<{ module: Module; action: Actions }>,
+) {
+  if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
+  if (session.role?.kind === 'ADMIN') return;
+  const allowed = checks.some(({ module, action }) => session.permissions?.[module]?.[action]);
+  if (!allowed) throw new HttpError(403, 'FORBIDDEN', 'Sem permissão para acessar este módulo.');
+}

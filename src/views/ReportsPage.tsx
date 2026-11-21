@@ -18,6 +18,7 @@ type Item = {
   boxKg: string;
   forecast: string;
   received: string;
+  rendimento: string;
   delta: number;
   entryTime: string | null;
   notes: string | null;
@@ -30,6 +31,7 @@ type Item = {
 type Totals = {
   forecast: number;
   received: number;
+  rendimento: number;
   delta: number;
   forecastKg: number;
   receivedKg: number;
@@ -43,6 +45,8 @@ const emptyFilters = {
   supplierId: '',
   userId: '',
   dockId: '',
+  conferenteId: '',
+  compradorId: '',
   delta: '',
 };
 
@@ -52,19 +56,25 @@ export default function ReportsPage() {
   const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [docks, setDocks] = useState<{ id: string; name: string }[]>([]);
+  const [conferentes, setConferentes] = useState<{ id: string; name: string }[]>([]);
+  const [compradores, setCompradores] = useState<{ id: string; name: string }[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function loadOptions() {
-    const [p, s, d] = await Promise.all([
+    const [p, s, d, cf, cp] = await Promise.all([
       api.get('/products/options'),
       api.get('/suppliers/options'),
       api.get('/registries/docks/options'),
+      api.get('/registries/conferentes/options'),
+      api.get('/registries/compradores/options'),
     ]);
     if (p.ok) setProducts(p.data);
     if (s.ok) setSuppliers(s.data);
     if (d.ok) setDocks(d.data);
+    if (cf.ok) setConferentes(cf.data);
+    if (cp.ok) setCompradores(cp.data);
   }
 
   function query() {
@@ -159,6 +169,14 @@ export default function ReportsPage() {
             <option value="">Todas</option>
             {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </Select>
+          <Select label="Conferente" value={filters.conferenteId} onChange={(e) => setFilters((f) => ({ ...f, conferenteId: e.target.value }))}>
+            <option value="">Todos</option>
+            {conferentes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+          <Select label="Comprador" value={filters.compradorId} onChange={(e) => setFilters((f) => ({ ...f, compradorId: e.target.value }))}>
+            <option value="">Todos</option>
+            {compradores.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
         </div>
       </SectionCard>
 
@@ -185,8 +203,11 @@ export default function ReportsPage() {
                     <th className="py-3 px-3">Fornecedor</th>
                     <th className="py-3 px-3 text-right">Previsão</th>
                     <th className="py-3 px-3 text-right">Recebido</th>
+                    <th className="py-3 px-3 text-right">Rendimento</th>
                     <th className="py-3 px-3 text-right">Delta</th>
                     <th className="py-3 px-3">Docа</th>
+                    <th className="py-3 px-3">Conferente</th>
+                    <th className="py-3 px-3">Comprador</th>
                     <th className="py-3 px-3">Observações</th>
                   </tr>
                 </thead>
@@ -201,10 +222,13 @@ export default function ReportsPage() {
                       <td className="py-3 px-3 text-slate-600">{it.supplierName}</td>
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
                       <td className="py-3 px-3 text-right font-bold text-emerald-700">{brNum(Number(it.received), 0)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</td>
                       <td className={clsx('py-3 px-3 text-right font-bold', it.delta > 0 ? 'text-emerald-700' : it.delta < 0 ? 'text-red-700' : 'text-slate-500')}>
                         {deltaText(it.delta)}
                       </td>
                       <td className="py-3 px-3 text-slate-600">{it.dockName}</td>
+                      <td className="py-3 px-3 text-slate-600">{it.conferenteName}</td>
+                      <td className="py-3 px-3 text-slate-600">{it.compradorName}</td>
                       <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                     </tr>
                   ))}
@@ -215,8 +239,9 @@ export default function ReportsPage() {
                       <td colSpan={4} className="py-3 px-3 text-right uppercase text-sm tracking-wide">Totais</td>
                       <td className="py-3 px-3 text-right">{brNum(totals.forecast, 0)}</td>
                       <td className="py-3 px-3 text-right">{brNum(totals.received, 0)}</td>
+                      <td className="py-3 px-3 text-right">{brNum(totals.rendimento, 0)}</td>
                       <td className="py-3 px-3 text-right">{deltaText(totals.delta)}</td>
-                      <td colSpan={2} />
+                      <td colSpan={4} />
                     </tr>
                   </tfoot>
                 )}
@@ -230,21 +255,23 @@ export default function ReportsPage() {
                   <div className="text-sm text-slate-600">
                     {it.supplierName} · {isoDate(it.launch?.referenceDate || it.referenceDate).split('-').reverse().join('/')} · {it.entryTime ?? '—'}
                   </div>
-                  <div className="mt-3 grid grid-cols-3 text-center border-y border-slate-100 py-2">
+                  <div className="mt-3 grid grid-cols-4 text-center border-y border-slate-100 py-2">
                     <div><div className="text-xs text-slate-500 uppercase">Previsão</div><div className="font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</div></div>
                     <div><div className="text-xs text-slate-500 uppercase">Recebido</div><div className="font-bold text-emerald-700">{brNum(Number(it.received), 0)}</div></div>
+                    <div><div className="text-xs text-slate-500 uppercase">Rendimento</div><div className="font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</div></div>
                     <div><div className="text-xs text-slate-500 uppercase">Delta</div><div className={clsx('font-bold', it.delta > 0 ? 'text-emerald-700' : it.delta < 0 ? 'text-red-700' : 'text-slate-500')}>{deltaText(it.delta)}</div></div>
                   </div>
-                  <div className="text-sm text-slate-600 mt-2"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName}</div>
+                  <div className="text-sm text-slate-600 mt-2"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName} · <b>Comprador:</b> {it.compradorName}</div>
                   {it.notes && <div className="text-sm text-slate-600 mt-1"><b>Observações:</b> {it.notes}</div>}
                 </div>
               ))}
               {totals && (
                 <div className="card p-4 border-2 border-brand-200 bg-brand-50">
                   <div className="font-bold text-base mb-2 text-slate-800">TOTAIS</div>
-                  <div className="grid grid-cols-3 text-center">
+                  <div className="grid grid-cols-4 text-center">
                     <div><div className="text-xs text-slate-600">Previsão</div><div className="font-bold text-blue-700">{brNum(totals.forecast, 0)}</div></div>
                     <div><div className="text-xs text-slate-600">Recebido</div><div className="font-bold text-emerald-700">{brNum(totals.received, 0)}</div></div>
+                    <div><div className="text-xs text-slate-600">Rendimento</div><div className="font-bold text-purple-700">{brNum(totals.rendimento, 0)}</div></div>
                     <div><div className="text-xs text-slate-600">Delta</div><div className="font-bold">{deltaText(totals.delta)}</div></div>
                   </div>
                 </div>

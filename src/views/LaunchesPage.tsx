@@ -3,7 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
+  ArrowRight,
+  ListChecks,
   Plus,
   Trash2,
   AlertTriangle,
@@ -15,7 +18,6 @@ import {
   History,
   Send,
   Warehouse,
-  Clock3,
   CheckCircle2,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -36,6 +38,7 @@ type Row = {
   supplierId: string;
   forecast: number | '';
   received: number | '';
+  rendimento: number | '';
   entryTime: string;
   notes: string;
   status: ItemStatus;
@@ -53,6 +56,7 @@ function newRow(): Row {
     supplierId: '',
     forecast: 0,
     received: 0,
+    rendimento: 0,
     entryTime: '',
     notes: '',
     status: 'PREVISTO',
@@ -92,10 +96,14 @@ export default function LaunchesPage() {
   const [pending, setPending] = useState<any[]>([]);
   const [received, setReceived] = useState<any[]>([]);
   const [filters, setFilters] = useState({
-    startDate: todayISO(),
-    endDate: todayISO(),
+    startDate: '',
+    endDate: '',
     q: '',
     dockId: '',
+    productId: '',
+    supplierId: '',
+    compradorId: '',
+    conferenteId: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -123,7 +131,11 @@ export default function LaunchesPage() {
     if (filters.startDate) q.set('startDate', filters.startDate);
     if (filters.endDate) q.set('endDate', filters.endDate);
     if (filters.q) q.set('q', filters.q);
-    if (view === 'received' && filters.dockId) q.set('dockId', filters.dockId);
+    if (filters.dockId) q.set('dockId', filters.dockId);
+    if (filters.productId) q.set('productId', filters.productId);
+    if (filters.supplierId) q.set('supplierId', filters.supplierId);
+    if (filters.compradorId) q.set('compradorId', filters.compradorId);
+    if (filters.conferenteId) q.set('conferenteId', filters.conferenteId);
     q.set('pageSize', '500');
     return q.toString();
   }
@@ -149,16 +161,27 @@ export default function LaunchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
+  // Permite abrir o lançamento diretamente pelo módulo "Produtos recebidos".
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('edit');
+    if (id) {
+      loadLaunchIntoForm({ id });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const totals = useMemo(
     () =>
       rows.reduce(
         (acc, r) => {
           acc.forecast += Number(r.forecast) || 0;
           acc.received += Number(r.received) || 0;
+          acc.rendimento += Number(r.rendimento) || 0;
           acc.delta += deltaOf(r.forecast, r.received);
           return acc;
         },
-        { forecast: 0, received: 0, delta: 0 },
+        { forecast: 0, received: 0, rendimento: 0, delta: 0 },
       ),
     [rows],
   );
@@ -216,6 +239,14 @@ export default function LaunchesPage() {
       toast('warning', 'Adicione ao menos um produto com fornecedor selecionado.');
       return;
     }
+    if (!compradorId) {
+      toast('warning', 'Selecione o comprador que informou a previsão.');
+      return;
+    }
+    if (!conferenteId) {
+      toast('warning', 'Selecione o conferente que recebeu a mercadoria.');
+      return;
+    }
 
     const receivedKeys = new Set<string>();
     for (const r of valid) {
@@ -251,6 +282,7 @@ export default function LaunchesPage() {
         supplierId: r.supplierId,
         forecast: Number(r.forecast) || 0,
         received: Number(r.received) || 0,
+        rendimento: Number(r.rendimento) || 0,
         entryTime: r.status === 'RECEBIDO' ? r.entryTime : null,
         notes: r.notes || null,
         status: r.status,
@@ -287,7 +319,7 @@ export default function LaunchesPage() {
   }
 
   function clearForm() {
-    const dirty = rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.notes);
+    const dirty = rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes);
     if (dirty) {
       setConfirmClear(true);
       return;
@@ -312,6 +344,7 @@ export default function LaunchesPage() {
         supplierId: it.supplierId,
         forecast: Number(it.forecast),
         received: Number(it.received),
+        rendimento: Number(it.rendimento),
         entryTime: it.entryTime ?? '',
         notes: it.notes ?? '',
         status: it.status === 'RECEBIDO' ? ('RECEBIDO' as ItemStatus) : ('PREVISTO' as ItemStatus),
@@ -334,7 +367,7 @@ export default function LaunchesPage() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.notes)) e.preventDefault();
+      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes)) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
@@ -349,6 +382,17 @@ export default function LaunchesPage() {
         })),
       ),
     [received],
+  );
+
+  const pendingFlat = useMemo(
+    () =>
+      pending.flatMap((l) =>
+        (l.items ?? []).map((it: any) => ({
+          ...it,
+          launch: l,
+        })),
+      ),
+    [pending],
   );
 
   return (
@@ -423,8 +467,9 @@ export default function LaunchesPage() {
           <AlertTriangle size={19} className="mt-0.5 shrink-0" />
           <div className="text-sm sm:text-base">
             <b>Fluxo:</b> preencha a previsão por produto. Quando a mercadoria chegar, informe a quantidade recebida,
-            o <b>horário de entrada</b> e as observações, e mude a situação para <b>Recebido</b>. O item sai daqui e
-            aparece em <b>Produtos recebidos</b> logo abaixo. O delta (recebido − previsto) é calculado automaticamente.
+            o <b>rendimento</b> (informado à mão, base de pagamento do fornecedor), o <b>horário de entrada</b> e as
+            observações, e mude a situação para <b>Recebido</b>. O item sai daqui e aparece no módulo <b>Produtos recebidos</b>.
+            O delta (recebido − previsto) é calculado automaticamente.
           </div>
         </div>
 
@@ -437,6 +482,7 @@ export default function LaunchesPage() {
                 <th className="py-3 px-3 min-w-[180px]">Fornecedor</th>
                 <th className="py-3 px-3 w-28">Previsão</th>
                 <th className="py-3 px-3 w-28">Recebido</th>
+                <th className="py-3 px-3 w-28">Rendimento</th>
                 <th className="py-3 px-3 w-28">Delta</th>
                 <th className="py-3 px-3 w-36">Situação</th>
                 <th className="py-3 px-3 w-36">Horário</th>
@@ -457,6 +503,7 @@ export default function LaunchesPage() {
                     </td>
                     <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
                     <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} /></td>
+                    <td className="py-2 px-2"><input type="number" min="0" step="0.001" className="input !h-11 !text-base" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Rendimento informado para pagamento do fornecedor" /></td>
                     <td className={clsx('py-4 px-3 font-bold text-lg', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-600' : 'text-slate-500') : 'text-slate-300')}>
                       {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
                     </td>
@@ -486,6 +533,7 @@ export default function LaunchesPage() {
                 <td colSpan={2} className="py-4 px-3 text-right uppercase text-sm tracking-wide text-slate-700">Totais</td>
                 <td className="py-4 px-3 text-brand-700 text-xl">{brNum(totals.forecast, 0)}</td>
                 <td className="py-4 px-3 text-emerald-700 text-xl">{brNum(totals.received, 0)}</td>
+                <td className="py-4 px-3 text-purple-700 text-xl">{brNum(totals.rendimento, 0)}</td>
                 <td className="py-4 px-3 text-slate-800 text-xl">{deltaLabel(totals.delta)}</td>
                 <td colSpan={4} />
               </tr>
@@ -507,9 +555,12 @@ export default function LaunchesPage() {
                 </div>
                 <SearchSelect label="Produto" icon={<Package size={17} />} items={productOptions} value={r.productId} onChange={(id) => setRow(idx, { productId: id })} placeholder="Digite o produto..." />
                 <SearchSelect label="Fornecedor" icon={<Truck size={17} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Digite o fornecedor..." />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Input type="number" min="0" step="0.001" label="Previsão" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
                   <Input type="number" min="0" step="0.001" label="Recebido" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
+                  <Input type="number" min="0" step="0.001" label="Rendimento" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="!h-12 !text-base" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <Select label="Situação" value={r.status} onChange={(e) => markReceived(idx, e.target.value as ItemStatus)} className="!h-12 !text-base">
                     <option value="PREVISTO">Previsão</option>
                     <option value="RECEBIDO">Recebido</option>
@@ -525,9 +576,10 @@ export default function LaunchesPage() {
           })}
           <div className="rounded-xl border-2 border-brand-200 bg-brand-50 p-4">
             <div className="text-sm font-bold uppercase text-slate-700 mb-2">Totais</div>
-            <div className="grid grid-cols-3 text-center gap-2">
+            <div className="grid grid-cols-4 text-center gap-2">
               <div><div className="text-xs text-slate-600">Previsão</div><div className="text-xl font-bold text-brand-700">{brNum(totals.forecast, 0)}</div></div>
               <div><div className="text-xs text-slate-600">Recebido</div><div className="text-xl font-bold text-emerald-700">{brNum(totals.received, 0)}</div></div>
+              <div><div className="text-xs text-slate-600">Rendimento</div><div className="text-xl font-bold text-purple-700">{brNum(totals.rendimento, 0)}</div></div>
               <div><div className="text-xs text-slate-600">Delta</div><div className="text-xl font-bold text-slate-800">{deltaLabel(totals.delta)}</div></div>
             </div>
           </div>
@@ -540,26 +592,34 @@ export default function LaunchesPage() {
         </div>
       </section>
 
-      {/* ===================== MÓDULO 2 — PRODUTOS RECEBIDOS ===================== */}
+      {/* ===================== MÓDULO 2 — ENTRADAS / PREVISÕES ===================== */}
       <section className="rounded-2xl bg-white shadow-soft border border-slate-200 p-5 sm:p-7">
         <header className="mb-5 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center shadow-md">
-              <CheckCircle2 size={24} />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-md">
+              <ListChecks size={24} />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Produtos recebidos</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Entradas / previsões pendentes</h2>
               <p className="text-sm text-slate-600">
-                Todos os itens conferidos, com horário de entrada obrigatório e todas as informações do recebimento.
+                Todas as entradas aparecem aqui. Ao confirmar o recebimento, o item sai desta lista e vai para o módulo <b>Produtos recebidos</b>.
               </p>
             </div>
           </div>
-          <Button variant="secondary" onClick={loadLists}>
-            <RefreshCw size={16} /> Atualizar
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={loadLists}>
+              <RefreshCw size={16} /> Atualizar
+            </Button>
+            <Link
+              href="/recebidos"
+              className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 transition"
+            >
+              <CheckCircle2 size={18} /> Produtos recebidos <ArrowRight size={17} />
+            </Link>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-5">
           <div>
             <label className="label">De</label>
             <input type="date" className="input !h-11 !text-base" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} />
@@ -569,10 +629,38 @@ export default function LaunchesPage() {
             <input type="date" className="input !h-11 !text-base" value={filters.endDate} onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))} />
           </div>
           <div>
+            <label className="label">Produto</label>
+            <Select value={filters.productId} onChange={(e) => setFilters((f) => ({ ...f, productId: e.target.value }))} className="!h-11 !text-base">
+              <option value="">Todos</option>
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="label">Fornecedor</label>
+            <Select value={filters.supplierId} onChange={(e) => setFilters((f) => ({ ...f, supplierId: e.target.value }))} className="!h-11 !text-base">
+              <option value="">Todos</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </div>
+          <div>
             <label className="label">Docа</label>
             <Select value={filters.dockId} onChange={(e) => setFilters((f) => ({ ...f, dockId: e.target.value }))} className="!h-11 !text-base">
               <option value="">Todas</option>
               {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="label">Comprador</label>
+            <Select value={filters.compradorId} onChange={(e) => setFilters((f) => ({ ...f, compradorId: e.target.value }))} className="!h-11 !text-base">
+              <option value="">Todos</option>
+              {compradores.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="label">Conferente</label>
+            <Select value={filters.conferenteId} onChange={(e) => setFilters((f) => ({ ...f, conferenteId: e.target.value }))} className="!h-11 !text-base">
+              <option value="">Todos</option>
+              {conferentes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </div>
           <div>
@@ -586,62 +674,51 @@ export default function LaunchesPage() {
 
         <div className="hidden xl:block overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-base">
-            <thead className="text-left text-sm font-semibold text-slate-700 bg-slate-100">
+            <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
               <tr className="border-b border-slate-200">
                 <th className="py-3 px-3">Data</th>
-                <th className="py-3 px-3">Horário</th>
                 <th className="py-3 px-3">Produto</th>
                 <th className="py-3 px-3">Fornecedor</th>
-                <th className="py-3 px-3">Previsão</th>
-                <th className="py-3 px-3">Recebido</th>
-                <th className="py-3 px-3">Delta</th>
+                <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
-                <th className="py-3 px-3">Conferente</th>
                 <th className="py-3 px-3">Comprador</th>
+                <th className="py-3 px-3">Conferente</th>
                 <th className="py-3 px-3">Observações</th>
                 <th className="py-3 px-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {receivedFlat.map((it: any) => {
-                const delta = deltaOf(it.forecast, it.received);
-                return (
-                  <tr key={it.id} className="border-b border-slate-100 hover:bg-emerald-50/40">
-                    <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                    <td className="py-3 px-3 font-bold text-brand-700 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1"><Clock3 size={15} />{it.entryTime ?? '—'}</span>
-                    </td>
-                    <td className="py-3 px-3">{it.productName}</td>
-                    <td className="py-3 px-3">{it.supplierName}</td>
-                    <td className="py-3 px-3">{brNum(it.forecast, 0)}</td>
-                    <td className="py-3 px-3 font-bold text-emerald-700">{brNum(it.received, 0)}</td>
-                    <td className={clsx('py-3 px-3 font-bold', delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-600' : 'text-slate-500')}>{deltaLabel(delta)}</td>
-                    <td className="py-3 px-3">{it.launch.dockName ?? '—'}</td>
-                    <td className="py-3 px-3">{it.launch.conferenteName ?? '—'}</td>
-                    <td className="py-3 px-3">{it.launch.compradorName ?? '—'}</td>
-                    <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="inline-flex gap-1">
-                        {canEdit && (
-                          <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
-                            <Pencil size={17} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
-                            <Trash2 size={17} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {receivedFlat.length === 0 && (
+              {pendingFlat.map((it: any) => (
+                <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
+                  <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
+                  <td className="py-3 px-3 font-medium">{it.productName}</td>
+                  <td className="py-3 px-3 text-slate-600">{it.supplierName}</td>
+                  <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
+                  <td className="py-3 px-3 text-slate-600">{it.launch.dockName ?? '—'}</td>
+                  <td className="py-3 px-3 text-slate-600">{it.launch.compradorName ?? '—'}</td>
+                  <td className="py-3 px-3 text-slate-600">{it.launch.conferenteName ?? '—'}</td>
+                  <td className="py-3 px-3 text-slate-600 max-w-[220px] truncate" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                  <td className="py-3 px-3 text-right">
+                    <div className="inline-flex gap-1">
+                      {canEdit && (
+                        <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
+                          <Pencil size={17} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
+                          <Trash2 size={17} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {pendingFlat.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="p-10 text-center text-slate-500">
-                    <CheckCircle2 className="mx-auto mb-2 text-emerald-300" size={34} />
-                    <p className="text-base">Nenhum produto recebido no período.</p>
+                  <td colSpan={9} className="p-10 text-center text-slate-500">
+                    <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
+                    <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
                   </td>
                 </tr>
               )}
@@ -650,44 +727,41 @@ export default function LaunchesPage() {
         </div>
 
         <div className="xl:hidden space-y-3">
-          {receivedFlat.map((it: any) => {
-            const delta = deltaOf(it.forecast, it.received);
-            return (
-              <div key={it.id} className="rounded-xl border-2 border-slate-200 bg-white p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-bold text-slate-800">{it.productName}</div>
-                    <div className="text-sm text-slate-600">{it.supplierName} · {isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</div>
-                  </div>
-                  <div className="flex gap-1">
-                    {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md"><Pencil size={17} /></button>}
-                    {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
-                  </div>
+          {pendingFlat.map((it: any) => (
+            <div key={it.id} className="rounded-xl border-2 border-slate-200 bg-white p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-bold text-slate-800">{it.productName}</div>
+                  <div className="text-sm text-slate-600">{it.supplierName} · {isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center border-y border-slate-100 py-2">
-                  <div><div className="text-xs text-slate-500">Previsão</div><div className="font-bold">{brNum(it.forecast, 0)}</div></div>
-                  <div><div className="text-xs text-slate-500">Recebido</div><div className="font-bold text-emerald-700">{brNum(it.received, 0)}</div></div>
-                  <div><div className="text-xs text-slate-500">Delta</div><div className={clsx('font-bold', delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-600' : 'text-slate-500')}>{deltaLabel(delta)}</div></div>
+                <div className="flex gap-1">
+                  {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md"><Pencil size={17} /></button>}
+                  {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
                 </div>
-                <div className="text-sm text-slate-700">
-                  <Clock3 size={15} className="inline mr-1 text-brand-600" />
-                  <b>Horário:</b> {it.entryTime ?? '—'} · <b>Docа:</b> {it.launch.dockName ?? '—'}
-                </div>
-                <div className="text-sm text-slate-600"><b>Conferente:</b> {it.launch.conferenteName ?? '—'} · <b>Comprador:</b> {it.launch.compradorName ?? '—'}</div>
-                {it.notes && <div className="text-sm text-slate-600"><b>Observações:</b> {it.notes}</div>}
               </div>
-            );
-          })}
-          {receivedFlat.length === 0 && (
+              <div className="grid grid-cols-3 gap-2 text-center border-y border-slate-100 py-2">
+                <div><div className="text-xs text-slate-500">Previsão</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
+                <div><div className="text-xs text-slate-500">Docа</div><div className="font-bold text-slate-700 text-sm">{it.launch.dockName ?? '—'}</div></div>
+                <div><div className="text-xs text-slate-500">Situação</div><div className="font-bold text-brand-700">Aguardando</div></div>
+              </div>
+              <div className="text-sm text-slate-600"><b>Comprador:</b> {it.launch.compradorName ?? '—'} · <b>Conferente:</b> {it.launch.conferenteName ?? '—'}</div>
+              {it.notes && <div className="text-sm text-slate-600"><b>Observações:</b> {it.notes}</div>}
+            </div>
+          ))}
+          {pendingFlat.length === 0 && (
             <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
-              Nenhum produto recebido no período.
+              Nenhuma entrada pendente para os filtros informados.
             </div>
           )}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-          <Badge tone="slate">{receivedFlat.length} produto(s) recebido(s)</Badge>
+          <Badge tone="sky">{pendingFlat.length} entrada(s) pendente(s)</Badge>
+          <Badge tone="green">{receivedFlat.length} produto(s) recebido(s) no filtro</Badge>
           <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
+          <Link href="/recebidos" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+            Abrir módulo Produtos recebidos <ArrowRight size={15} />
+          </Link>
           {loadingLists && <Spinner />}
         </div>
       </section>

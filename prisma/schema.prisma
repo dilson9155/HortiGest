@@ -236,6 +236,8 @@ model LaunchItem {
   forecast     Decimal  @default(0) @db.Decimal(14, 3)
   // Quantidade que realmente chegou (informada pelo conferente).
   received     Decimal  @default(0) @db.Decimal(14, 3)
+  // Rendimento informado à mão (base de pagamento ao fornecedor / estoque real).
+  rendimento   Decimal  @default(0) @db.Decimal(14, 3)
   // Horário de entrada de cada produto (HH:mm). Obrigatório ao receber.
   entryTime    String?
   // Observações do conferente sobre o produto recebido.

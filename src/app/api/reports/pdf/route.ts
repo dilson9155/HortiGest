@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import PDFDocument from 'pdfkit';
 import { parseDateOnly } from '../../../../lib/calc';
-import { getSession, requirePerm, HttpError } from '../../../../lib/session';
+import { getSession, requireAnyPerm, HttpError } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,7 +52,10 @@ async function getCompanyLogoBuffer(): Promise<Buffer | null> {
 export async function GET(req: Request) {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
-  requirePerm(session, 'reports', 'export');
+  requireAnyPerm(session, [
+    { module: 'reports', action: 'export' },
+    { module: 'launches', action: 'view' },
+  ]);
 
   const url = new URL(req.url);
   const startDate = url.searchParams.get('startDate');
@@ -61,7 +64,12 @@ export async function GET(req: Request) {
   const supplierId = url.searchParams.get('supplierId');
   const userId = url.searchParams.get('userId');
   const dockId = url.searchParams.get('dockId');
+  const conferenteId = url.searchParams.get('conferenteId');
+  const compradorId = url.searchParams.get('compradorId');
   const deltaFilter = url.searchParams.get('delta');
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const timeFrom = url.searchParams.get('timeFrom');
+  const timeTo = url.searchParams.get('timeTo');
 
   // ---------- 1) Buscar dados ----------
   const where: any = { status: 'RECEBIDO' };
@@ -81,14 +89,43 @@ export async function GET(req: Request) {
     where.launch = where.launch ?? {};
     where.launch.dockId = dockId;
   }
+  if (conferenteId) {
+    where.launch = where.launch ?? {};
+    where.launch.conferenteId = conferenteId;
+  }
+  if (compradorId) {
+    where.launch = where.launch ?? {};
+    where.launch.compradorId = compradorId;
+  }
   if (productId) where.productId = productId;
   if (supplierId) where.supplierId = supplierId;
+  if (timeFrom || timeTo) {
+    where.entryTime = where.entryTime ?? {};
+    if (timeFrom) where.entryTime.gte = timeFrom;
+    if (timeTo) where.entryTime.lte = timeTo;
+  }
+  if (q) {
+    where.OR = [
+      { productName: { contains: q, mode: 'insensitive' } },
+      { supplierName: { contains: q, mode: 'insensitive' } },
+      { notes: { contains: q, mode: 'insensitive' } },
+      { launch: { dockName: { contains: q, mode: 'insensitive' } } },
+      { launch: { conferenteName: { contains: q, mode: 'insensitive' } } },
+      { launch: { compradorName: { contains: q, mode: 'insensitive' } } },
+    ];
+  }
 
   const rows = await prisma.launchItem.findMany({
     where,
     include: {
       launch: {
-        select: { referenceDate: true, dockName: true, user: { select: { name: true } } },
+        select: {
+          referenceDate: true,
+          dockName: true,
+          conferenteName: true,
+          compradorName: true,
+          user: { select: { name: true } },
+        },
       },
     },
     orderBy: [{ launch: { referenceDate: 'desc' } }, { entryTime: 'asc' }, { productName: 'asc' }],
@@ -102,6 +139,7 @@ export async function GET(req: Request) {
       supplier: it.supplierName,
       forecast: Number(it.forecast),
       received: Number(it.received),
+      rendimento: Number(it.rendimento),
       delta: Number(it.received) - Number(it.forecast),
       dock: (it.launch as any)?.dockName ?? '—',
       notes: it.notes ?? '',
@@ -118,13 +156,14 @@ export async function GET(req: Request) {
     (acc, it) => {
       acc.forecast += it.forecast;
       acc.received += it.received;
+      acc.rendimento += it.rendimento;
       acc.delta += it.delta;
       acc.forecastKg += it.forecast * it.kg;
       acc.receivedKg += it.received * it.kg;
       acc.deltaKg += it.delta * it.kg;
       return acc;
     },
-    { forecast: 0, received: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
+    { forecast: 0, received: 0, rendimento: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
   );
 
   // ---------- 2) Empresa / logo ----------
@@ -166,7 +205,7 @@ export async function GET(req: Request) {
       let productW = 150;
       let supplierW = 140;
       let notesW = 185;
-      let fixed = 62 + 48 + 62 + 62 + 62 + 76; // data, hora, previsão, recebido, delta, docа
+      let fixed = 62 + 48 + 62 + 62 + 62 + 62 + 76; // data, hora, previsão, recebido, rendimento, delta, docа
       const diff = contentW - (fixed + productW + supplierW + notesW);
       notesW += diff;
 
@@ -177,6 +216,7 @@ export async function GET(req: Request) {
         { label: 'Fornecedor', w: supplierW, align: 'left' },
         { label: 'Previsão', w: 62, align: 'right' },
         { label: 'Recebido', w: 62, align: 'right' },
+        { label: 'Rendimento', w: 62, align: 'right' },
         { label: 'Delta', w: 62, align: 'right' },
         { label: 'Docа', w: 76, align: 'left' },
         { label: 'Observações', w: notesW, align: 'left' },
@@ -241,7 +281,7 @@ export async function GET(req: Request) {
         if (striped) doc.rect(MARGIN, y, contentW, ROW_H).fill('#f1f5f9');
         doc.font('Helvetica').fontSize(9.5);
         cols.forEach((c, i) => {
-          if (i === 6) {
+          if (i === 7) {
             doc.fillColor(deltaValue > 0 ? '#047857' : deltaValue < 0 ? '#b91c1c' : '#475569');
             doc.font('Helvetica-Bold');
           } else {
@@ -269,7 +309,7 @@ export async function GET(req: Request) {
       doc.fillColor('#475569').font('Helvetica').fontSize(10).text(`Período: ${period}`, MARGIN, y, { lineBreak: false });
       y += 16;
       doc.fillColor('#475569').font('Helvetica').fontSize(9.5).text(
-        `Registros: ${items.length}   •   Previsão: ${fmtInt(totals.forecast)} cx   •   Recebido: ${fmtInt(totals.received)} cx   •   Delta: ${deltaLabelBR(totals.delta)} cx   •   (valores em caixas)`,
+        `Registros: ${items.length}   •   Previsão: ${fmtInt(totals.forecast)} cx   •   Recebido: ${fmtInt(totals.received)} cx   •   Rendimento: ${fmtDec(totals.rendimento, 2)}   •   Delta: ${deltaLabelBR(totals.delta)} cx   •   (valores em caixas)`,
         MARGIN, y, { width: contentW, lineBreak: false, ellipsis: true, height: 14 },
       );
 
@@ -309,7 +349,7 @@ export async function GET(req: Request) {
           }
           const values = [
             it.date, it.time, it.product, it.supplier,
-            fmtInt(it.forecast), fmtInt(it.received), deltaLabelBR(it.delta), it.dock, it.notes,
+            fmtInt(it.forecast), fmtInt(it.received), fmtDec(it.rendimento, 2), deltaLabelBR(it.delta), it.dock, it.notes,
           ];
           drawRow(y, values, idx % 2 === 1, it.delta);
           y += ROW_H;
@@ -322,10 +362,15 @@ export async function GET(req: Request) {
         doc.rect(MARGIN, y, contentW, 26).fill('#134e4a');
         doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10);
         doc.text('TOTAIS', MARGIN + 8, y + 8, { width: colX[4] - MARGIN - 12, lineBreak: false });
-        const totVals = [totals.forecast, totals.received, totals.delta];
-        totVals.forEach((v, i) => {
+        const totVals: Array<{ value: number; format: (v: number) => string }> = [
+          { value: totals.forecast, format: fmtInt },
+          { value: totals.received, format: fmtInt },
+          { value: totals.rendimento, format: (v) => fmtDec(v, 2) },
+          { value: totals.delta, format: deltaLabelBR },
+        ];
+        totVals.forEach(({ value, format }, i) => {
           const c = cols[4 + i];
-          doc.text(deltaLabelBR(v), colX[4 + i] + padX, y + 8, { width: c.w - padX * 2, align: 'right', lineBreak: false });
+          doc.text(format(value), colX[4 + i] + padX, y + 8, { width: c.w - padX * 2, align: 'right', lineBreak: false });
         });
         y += 30;
         doc.fillColor('#334155').font('Helvetica').fontSize(9).text(

@@ -1,14 +1,19 @@
 import { prisma } from '../../../../lib/prisma';
 import { parseDateOnly } from '../../../../lib/calc';
 import { handler } from '../../../../lib/api-handler';
-import { getSession, requirePerm, HttpError } from '../../../../lib/session';
+import { getSession, requireAnyPerm, HttpError } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 
 export const GET = handler(async (req) => {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
-  requirePerm(session, 'reports', 'view');
+  // O módulo "Produtos recebidos" usa a permissão de lançamentos;
+  // relatórios continuam acessíveis para quem tem permissão de relatórios.
+  requireAnyPerm(session, [
+    { module: 'reports', action: 'view' },
+    { module: 'launches', action: 'view' },
+  ]);
 
   const url = new URL(req.url);
   const startDate = url.searchParams.get('startDate');
@@ -20,6 +25,9 @@ export const GET = handler(async (req) => {
   const conferenteId = url.searchParams.get('conferenteId');
   const compradorId = url.searchParams.get('compradorId');
   const deltaFilter = url.searchParams.get('delta');
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const timeFrom = url.searchParams.get('timeFrom');
+  const timeTo = url.searchParams.get('timeTo');
 
   const where: any = { status: 'RECEBIDO' };
   if (startDate || endDate) {
@@ -48,6 +56,21 @@ export const GET = handler(async (req) => {
   }
   if (productId) where.productId = productId;
   if (supplierId) where.supplierId = supplierId;
+  if (timeFrom || timeTo) {
+    where.entryTime = where.entryTime ?? {};
+    if (timeFrom) where.entryTime.gte = timeFrom;
+    if (timeTo) where.entryTime.lte = timeTo;
+  }
+  if (q) {
+    where.OR = [
+      { productName: { contains: q, mode: 'insensitive' } },
+      { supplierName: { contains: q, mode: 'insensitive' } },
+      { notes: { contains: q, mode: 'insensitive' } },
+      { launch: { dockName: { contains: q, mode: 'insensitive' } } },
+      { launch: { conferenteName: { contains: q, mode: 'insensitive' } } },
+      { launch: { compradorName: { contains: q, mode: 'insensitive' } } },
+    ];
+  }
 
   const rows = await prisma.launchItem.findMany({
     where,
@@ -68,12 +91,14 @@ export const GET = handler(async (req) => {
   const items = rows
     .map((it) => ({
       id: it.id,
+      launchId: it.launchId,
       referenceDate: (it.launch as any).referenceDate,
       productName: it.productName,
       supplierName: it.supplierName,
       boxKg: String(it.boxKg),
       forecast: String(it.forecast),
       received: String(it.received),
+      rendimento: String(it.rendimento),
       delta: Number(it.received) - Number(it.forecast),
       entryTime: it.entryTime,
       notes: it.notes,
@@ -99,13 +124,14 @@ export const GET = handler(async (req) => {
       const kg = Number(it.boxKg);
       acc.forecast += forecast;
       acc.received += received;
+      acc.rendimento += Number(it.rendimento);
       acc.delta += it.delta;
       acc.forecastKg += forecast * kg;
       acc.receivedKg += received * kg;
       acc.deltaKg += it.delta * kg;
       return acc;
     },
-    { forecast: 0, received: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
+    { forecast: 0, received: 0, rendimento: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
   );
 
   return { items, totals };

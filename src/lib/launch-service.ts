@@ -20,6 +20,7 @@ export const launchSchema = z.object({
         supplierId: z.string().min(1),
         forecast: z.number().nonnegative().default(0),
         received: z.number().nonnegative().default(0),
+        rendimento: z.number().nonnegative().default(0),
         entryTime: z.string().regex(timeRegex, 'Horário inválido (use HH:mm).').optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
         status: z.enum(['PREVISTO', 'RECEBIDO']).optional(),
@@ -36,6 +37,7 @@ export type NormalizedItem = {
   supplierId: string;
   forecast: number;
   received: number;
+  rendimento: number;
   entryTime: string | null;
   notes: string | null;
   itemStatus: ItemStatus;
@@ -73,6 +75,7 @@ export function normalizeLaunch(payload: LaunchPayload) {
       supplierId: it.supplierId,
       forecast: Number(it.forecast ?? 0),
       received: Number(it.received ?? 0),
+      rendimento: Number(it.rendimento ?? 0),
       entryTime: it.entryTime ?? null,
       notes: it.notes ?? null,
       itemStatus,
@@ -160,6 +163,7 @@ export async function writeItems(tx: any, launchId: string, items: NormalizedIte
         status: it.itemStatus,
         forecast: it.forecast,
         received: it.received,
+        rendimento: it.rendimento,
         entryTime: it.entryTime,
         notes: it.notes,
         // Colunas legadas: mantidas zeradas para não quebrar dados antigos.

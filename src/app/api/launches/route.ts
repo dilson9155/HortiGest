@@ -23,6 +23,10 @@ export const GET = handler(async (req) => {
   const endDate = url.searchParams.get('endDate');
   const userId = url.searchParams.get('userId') ?? undefined;
   const dockId = url.searchParams.get('dockId') ?? undefined;
+  const conferenteId = url.searchParams.get('conferenteId') ?? undefined;
+  const compradorId = url.searchParams.get('compradorId') ?? undefined;
+  const productId = url.searchParams.get('productId') ?? undefined;
+  const supplierId = url.searchParams.get('supplierId') ?? undefined;
   const q = url.searchParams.get('q') ?? '';
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
   const pageSize = Math.min(500, Math.max(5, Number(url.searchParams.get('pageSize') ?? 10)));
@@ -45,7 +49,15 @@ export const GET = handler(async (req) => {
   }
   if (userId) where.userId = userId;
   if (dockId) where.dockId = dockId;
-  if (itemStatus) where.items = { some: { status: itemStatus } };
+  if (conferenteId) where.conferenteId = conferenteId;
+  if (compradorId) where.compradorId = compradorId;
+
+  const itemWhere: any = {};
+  if (itemStatus) itemWhere.status = itemStatus;
+  if (productId) itemWhere.productId = productId;
+  if (supplierId) itemWhere.supplierId = supplierId;
+  if (Object.keys(itemWhere).length) where.items = { some: itemWhere };
+
   if (q) {
     where.OR = [
       { notes: { contains: q, mode: 'insensitive' } },
@@ -57,7 +69,9 @@ export const GET = handler(async (req) => {
   }
 
   const include: any = { ...launchInclude };
-  if (itemStatus) include.items = { where: { status: itemStatus }, orderBy: { productName: 'asc' } };
+  if (Object.keys(itemWhere).length) {
+    include.items = { where: itemWhere, orderBy: { productName: 'asc' } };
+  }
 
   const [items, total] = await Promise.all([
     prisma.launch.findMany({
