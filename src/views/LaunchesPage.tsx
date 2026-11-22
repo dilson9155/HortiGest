@@ -60,6 +60,11 @@ function autoStatus(row: Pick<Row, 'entryTime' | 'received'>): ItemStatus {
   return row.entryTime.trim() || Number(row.received) > 0 ? 'RECEBIDO' : 'PREVISTO';
 }
 
+// Lanceiamentos antigos podem ter só o nome gravado; localiza o cadastro atual.
+function registryIdByName(list: NamedOption[], name: string) {
+  return list.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase())?.id ?? '';
+}
+
 function newRow(defaults: RowDefaults = {}): Row {
   return {
     _key: `r_${Math.random().toString(36).slice(2, 9)}`,
@@ -178,6 +183,18 @@ export default function LaunchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Histórico com apenas o nome gravado é amarrado ao cadastro correspondente.
+  useEffect(() => {
+    if (!compradores.length && !conferentes.length) return;
+    setRows((arr) =>
+      arr.map((r) => ({
+        ...r,
+        compradorId: r.compradorId || registryIdByName(compradores, r.compradorName),
+        conferenteId: r.conferenteId || registryIdByName(conferentes, r.conferenteName),
+      })),
+    );
+  }, [compradores, conferentes]);
+
   useEffect(() => {
     loadLists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,6 +229,9 @@ export default function LaunchesPage() {
     [products],
   );
   const supplierOptions = useMemo(() => toOptions(suppliers), [suppliers]);
+  // Somente cadastros ativos podem ser selecionados como responsáveis.
+  const compradoresAtivos = useMemo(() => compradores.filter((c) => c.active !== false), [compradores]);
+  const conferentesAtivos = useMemo(() => conferentes.filter((c) => c.active !== false), [conferentes]);
 
   function setRow(idx: number, patch: Partial<Row>) {
     setRows((arr) =>
@@ -269,8 +289,8 @@ export default function LaunchesPage() {
         toast('error', 'Não é permitido valor negativo.');
         return;
       }
-      if (!r.compradorName.trim()) {
-        toast('warning', `Item ${idx + 1}: informe o comprador que lançou a previsão.`);
+      if (!r.compradorId) {
+        toast('warning', `Item ${idx + 1}: selecione um comprador cadastrado.`);
         return;
       }
       if (!r.forecastTime) {
@@ -282,8 +302,8 @@ export default function LaunchesPage() {
         return;
       }
       if (r.status === 'RECEBIDO') {
-        if (!r.conferenteName.trim()) {
-          toast('warning', `Item ${idx + 1}: informe o conferente que lançou o recebimento.`);
+        if (!r.conferenteId) {
+          toast('warning', `Item ${idx + 1}: selecione um conferente cadastrado.`);
           return;
         }
         if (!r.entryTime) {
@@ -546,12 +566,6 @@ export default function LaunchesPage() {
         </header>
 
         {/* Padrões compactos — preenchem novas linhas; cada item pode ser diferente. */}
-        <datalist id="hl-compradores">
-          {compradores.map((c) => <option key={c.id} value={c.name} />)}
-        </datalist>
-        <datalist id="hl-conferentes">
-          {conferentes.map((c) => <option key={c.id} value={c.name} />)}
-        </datalist>
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4">
           <div className="flex flex-wrap items-end gap-2">
             <div className="w-36 shrink-0">
@@ -559,13 +573,17 @@ export default function LaunchesPage() {
             </div>
             <div className="min-w-[150px] flex-1">
               <label className="label">Comprador padrão</label>
-              <Input
-                list="hl-compradores"
-                value={compradorName}
-                onChange={(e) => { setCompradorName(e.target.value); setCompradorId(''); }}
-                placeholder="Nome do comprador"
+              <Select
+                value={compradorId}
+                onChange={(e) => {
+                  setCompradorId(e.target.value);
+                  setCompradorName(compradores.find((c) => c.id === e.target.value)?.name ?? '');
+                }}
                 className="!h-9 !text-sm"
-              />
+              >
+                <option value="">Selecione...</option>
+                {compradoresAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
             </div>
             <div className="min-w-[130px] flex-1">
               <label className="label">Docа padrão</label>
@@ -576,13 +594,17 @@ export default function LaunchesPage() {
             </div>
             <div className="min-w-[150px] flex-1">
               <label className="label">Conferente padrão</label>
-              <Input
-                list="hl-conferentes"
-                value={conferenteName}
-                onChange={(e) => { setConferenteName(e.target.value); setConferenteId(''); }}
-                placeholder="Nome do conferente"
+              <Select
+                value={conferenteId}
+                onChange={(e) => {
+                  setConferenteId(e.target.value);
+                  setConferenteName(conferentes.find((c) => c.id === e.target.value)?.name ?? '');
+                }}
                 className="!h-9 !text-sm"
-              />
+              >
+                <option value="">Selecione...</option>
+                {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
             </div>
             <div className="min-w-[160px] flex-[1.2]">
               <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" className="!h-9 !text-sm" />
@@ -592,7 +614,7 @@ export default function LaunchesPage() {
             </Button>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Padrões para novos itens. Cada item registrado abaixo pode ter comprador, conferente, doca e horários próprios.
+            Padrões para novos itens. Comprador e conferente vêm somente dos cadastros; cada item pode ter os próprios responsáveis e horários.
           </p>
         </div>
 
@@ -645,7 +667,18 @@ export default function LaunchesPage() {
                       <SearchSelect compact icon={<Truck size={16} />} items={supplierOptions} value={r.supplierId} onChange={(id) => setRow(idx, { supplierId: id })} placeholder="Fornecedor..." />
                     </td>
                     <td className="border border-sky-100 p-1.5 align-middle">
-                      <input list="hl-compradores" value={r.compradorName} onChange={(e) => setRow(idx, { compradorName: e.target.value, compradorId: '' })} placeholder="Nome" className="input !h-9 !text-sm !px-2" />
+                      <select
+                        value={r.compradorId || registryIdByName(compradoresAtivos, r.compradorName)}
+                        onChange={(e) => {
+                          const found = compradores.find((c) => c.id === e.target.value);
+                          setRow(idx, { compradorId: e.target.value, compradorName: found?.name ?? '' });
+                        }}
+                        className="input !h-9 !text-sm !px-2"
+                        title="Somente compradores cadastrados"
+                      >
+                        <option value="">Selecione...</option>
+                        {compradoresAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     </td>
                     <td className="border border-sky-100 p-1.5 align-middle">
                       <input type="time" value={r.forecastTime} onChange={(e) => setRow(idx, { forecastTime: e.target.value })} className="input !h-9 !text-sm !px-2" />
@@ -660,7 +693,18 @@ export default function LaunchesPage() {
                       <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300" />
                     </td>
                     <td className="border border-emerald-100 p-1.5 align-middle">
-                      <input list="hl-conferentes" value={r.conferenteName} onChange={(e) => setRow(idx, { conferenteName: e.target.value, conferenteId: '' })} placeholder="Nome" className="input !h-9 !text-sm !px-2" />
+                      <select
+                        value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
+                        onChange={(e) => {
+                          const found = conferentes.find((c) => c.id === e.target.value);
+                          setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
+                        }}
+                        className="input !h-9 !text-sm !px-2"
+                        title="Somente conferentes cadastrados"
+                      >
+                        <option value="">Selecione...</option>
+                        {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     </td>
                     <td className="border border-emerald-100 p-1.5 align-middle">
                       <input type="time" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value })} className="input !h-9 !text-sm !px-2" title="Ao informar o horário, a situação vira Recebido automaticamente" />
