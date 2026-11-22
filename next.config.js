@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: { webpackBuildWorker: false },
   // Pacotes que rodam em Node runtime (não em Edge)
   serverExternalPackages: ['pdfkit', '@prisma/client', 'argon2'],
   // Imagens
