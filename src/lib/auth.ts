@@ -1,7 +1,13 @@
 import jwt from 'jsonwebtoken';
 import argon2 from 'argon2';
+import { createHash } from 'node:crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-me';
+
+/** Hash usado para gravar tokens de recuperação sem expor o token original. */
+export function hashToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export async function hashPassword(plain: string) {
   return argon2.hash(plain, { type: argon2.argon2id });

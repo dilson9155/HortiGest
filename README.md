@@ -89,6 +89,9 @@ hortifruti-next/
    - `NODE_ENV=production`
    - `ADMIN_USERNAME=admin`
    - `ADMIN_PASSWORD=<senha forte>`
+   - `APP_URL=https://hortigest.elitesistemas.io` (link dos e-mails de recuperação)
+   - `RESEND_API_KEY=<chave do Resend>`
+   - `EMAIL_FROM=HortiGest <no-reply@seudominio.com.br>` (domínio verificado no Resend)
 5. **Build command override (se pedir):** `npx prisma generate && npx prisma migrate deploy && npm run build`
 6. Adicione um script ao `package.json` (`db:setup`):
    ```json
@@ -108,6 +111,23 @@ Em cada push, a Hostinger detecta o commit e reimplanta automaticamente. 🎉
 | Senha | a definida em `ADMIN_PASSWORD` |
 
 ⚠️ **Troque a senha** no primeiro acesso.
+
+## 🔑 Recuperação de senha
+
+1. Na tela de login, clique em **Esqueci minha senha** e informe o e-mail cadastrado.
+2. O sistema envia (via [Resend](https://resend.com)) um link para `/redefinir-senha?token=...` com validade de 30 minutos e uso único.
+3. Defina a nova senha (mínimo de 8 caracteres, com letras e números) e entre normalmente.
+
+Configuração:
+
+| Variável | Obrigatória | Descrição |
+|----------|-------------|-----------|
+| `APP_URL` (ou `NEXT_PUBLIC_APP_URL`) | sim | URL pública usada no link do e-mail |
+| `RESEND_API_KEY` | não | API key do Resend; sem ela o link aparece no console do servidor |
+| `EMAIL_FROM` | não | Remetente verificado, ex.: `HortiGest <no-reply@seudominio.com.br>` |
+| `PASSWORD_RESET_DEV_LINK` | não | `true` exibe o link na tela **apenas fora de produção** |
+
+O usuário só recebe o e-mail se tiver `email` cadastrado e estiver ativo. A resposta da API é sempre a mesma (genérica), inclusive para e-mails desconhecidos ou limite de solicitações excedido — limite de 3 por usuário e 10 por IP a cada 15 minutos. O token original nunca é gravado: o banco guarda apenas o hash SHA-256 em `password_reset_tokens`.
 
 ## 🛠️ Comandos úteis
 

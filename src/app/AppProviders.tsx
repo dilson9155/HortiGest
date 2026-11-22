@@ -31,16 +31,20 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Rotas acessíveis sem estar autenticado (login e recuperação de senha).
+const PUBLIC_ROUTES = ['/login', '/recuperar-senha', '/redefinir-senha'];
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const isPublic = PUBLIC_ROUTES.includes(pathname ?? '');
 
   useEffect(() => {
-    if (!loading && !user && pathname !== '/login') {
+    if (!loading && !user && !isPublic) {
       router.replace('/login');
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, isPublic, router]);
 
   if (loading) {
     return (
@@ -52,7 +56,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (pathname === '/login') return <>{children}</>;
+  if (isPublic) return <>{children}</>;
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">

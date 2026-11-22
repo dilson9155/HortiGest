@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, Lock, User, Sprout, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -130,6 +131,15 @@ export default function LoginPage() {
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex justify-end -mt-2">
+              <Link
+                href="/recuperar-senha"
+                className="text-xs font-semibold text-brand-700 hover:text-brand-900 hover:underline"
+              >
+                Esqueci minha senha
+              </Link>
             </div>
 
             <button

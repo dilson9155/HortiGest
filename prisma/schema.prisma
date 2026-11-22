@@ -3,6 +3,7 @@
 // =============================================================
 //  Tabelas:
 //   - users / roles / permissions / role_permissions
+//   - password_reset_tokens (recuperação de senha via e-mail)
 //   - fornecedores (suppliers)
 //   - produtos (products) com peso padrão da caixa
 //   - docas / conferentes / compradores (cadastros de recebimento)
@@ -101,13 +102,32 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  launches          Launch[]
-  auditLogs         AuditLog[] @relation("AuditUser")
-  modulePermissions UserModulePermission[]
+  launches            Launch[]
+  auditLogs           AuditLog[] @relation("AuditUser")
+  modulePermissions   UserModulePermission[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([username])
   @@index([active])
   @@map("users")
+}
+
+// Token de recuperação de senha: o valor original nunca é gravado,
+// apenas o hash SHA-256, com validade curta e uso único.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 // ============================================================
