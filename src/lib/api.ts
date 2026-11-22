@@ -79,6 +79,10 @@ export const api = {
     const r = await request<T>('PUT', p, body, 'json');
     return r as ApiResult<T>;
   },
+  patch: async <T = any>(p: string, body?: any): Promise<ApiResult<T>> => {
+    const r = await request<T>('PATCH', p, body, 'json');
+    return r as ApiResult<T>;
+  },
   del: async <T = any>(p: string): Promise<ApiResult<T>> => {
     const r = await request<T>('DELETE', p, undefined, 'json');
     return r as ApiResult<T>;

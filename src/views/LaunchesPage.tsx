@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   ListChecks,
@@ -161,11 +161,17 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const { can, loading: loadingAuth } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editParam = searchParams.get('edit');
   const launchModule = mode === 'buyers' ? 'launches_buyers' : 'launches_reviewers';
-  const canView = can(launchModule, 'view');
+  const openedFromHistory = !!editParam;
+  const canView =
+    can(launchModule, 'view') ||
+    (mode === 'buyers' && openedFromHistory && (can('reports', 'view') || can('launches', 'view')));
   const canCreate = can(launchModule, 'create');
-  const canEdit = can(launchModule, 'edit');
+  const canEditModule = can(launchModule, 'edit');
   const canDelete = can(launchModule, 'delete');
+  const canBuyersView = can('launches_buyers', 'view');
 
   const [date, setDate] = useState(todayISO());
   const [dockId, setDockId] = useState('');
@@ -176,6 +182,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [editingLaunchId, setEditingLaunchId] = useState<string | null>(null);
+
+  // Ao abrir um lançamento pelo histórico, quem pode ver o histórico pode editá-lo.
+  const canHistoryEdit = can('reports', 'view') || can('launches', 'view');
+  const canEdit =
+    canEditModule ||
+    can(launchModule, 'create') ||
+    ((!!editingLaunchId || openedFromHistory) && canHistoryEdit);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
@@ -267,13 +280,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
   // Permite abrir o lançamento diretamente pelo histórico de entradas.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('edit');
-    if (id) {
-      loadLaunchIntoForm({ id });
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    if (editParam) loadLaunchIntoForm({ id: editParam });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editParam]);
 
   const toOptions = (list: NamedOption[]) =>
     list.map((x) => ({
@@ -707,6 +716,37 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     }
   }
 
+  // Rendimento e observação podem ser ajustados depois da conferência,
+  // sem exigir acesso à tela de compradores nem regravar o recebimento.
+  async function saveItemAdjustment(it: any, draft: ReceiveDraft) {
+    if (!canEdit) {
+      toast('error', 'Sem permissão para editar lançamentos.');
+      return;
+    }
+    const rendimento = Number(draft.rendimento) || 0;
+    if (rendimento < 0) {
+      toast('error', 'Não é permitido valor negativo.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.patch(`/launches/${it.launchId}/items/${it.id}`, {
+        rendimento,
+        notes: draft.notes || null,
+      });
+      if (!res.ok) {
+        toast('error', errorMessage(res, 'Falha ao salvar ajuste do item.'));
+        return;
+      }
+      toast('success', 'Rendimento e observação atualizados.');
+      await loadLists();
+    } catch (err) {
+      toast('error', errorMessage(err, 'Falha ao salvar ajuste do item.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Ao abrir pelo histórico, mostra também os campos do conferente para edição completa.
   const showFullEdit = !!editingLaunchId;
 
@@ -806,7 +846,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             </Button>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Padrões para novos itens. O comprador vem somente dos cadastros; cada item pode ter seu próprio comprador, doca e horário previsto.
+            Padrões para novos itens. O comprador vem somente dos cadastros; cada item pode ter seu próprio comprador, doca, horário previsto e observação.
           </p>
         </div>
 
@@ -829,9 +869,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[85px]">Rendimento</th>
                     <th className="border border-slate-300 px-2 py-2 min-w-[70px]">Delta</th>
                     <th className="border border-slate-300 px-2 py-2 min-w-[100px]">Situação</th>
-                    <th className="border border-slate-300 px-2 py-2 min-w-[180px]">Observações</th>
                   </>
                 )}
+                <th className="border border-slate-300 px-2 py-2 min-w-[180px]">Observações</th>
                 <th className="border border-slate-300 px-1.5 py-2 w-20">Ações</th>
               </tr>
             </thead>
@@ -932,11 +972,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
                           </span>
                         </td>
-                        <td className="border border-slate-200 p-1.5 align-middle">
-                          <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" />
-                        </td>
                       </>
                     )}
+                    <td className="border border-slate-200 p-1.5 align-middle">
+                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
+                    </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -980,7 +1020,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Lançamento conferentes</h2>
               <p className="text-sm text-slate-600">
                 Tudo que os compradores lançam fica agrupado aqui por fornecedor. Confira o que chegou e salve item por item; o lançamento só vai para o
-                histórico quando todos os itens estiverem conferidos.
+                histórico quando todos os itens estiverem conferidos. Depois de salvo, rendimento e observação continuam editáveis pelo disco da linha.
               </p>
             </div>
           </div>
@@ -1066,6 +1106,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                 <th className="py-3 px-3">Hor. conf.</th>
                 <th className="py-3 px-3 text-right">Delta</th>
                 <th className="py-3 px-3">Situação</th>
+                <th className="py-3 px-3 min-w-[180px]">Observações</th>
                 <th className="py-3 px-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -1073,7 +1114,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               {pendingBySupplier.map((group) => (
                 <Fragment key={group.key}>
                   <tr className="bg-slate-50 border-b-2 border-brand-100">
-                    <td colSpan={13} className="p-0">
+                    <td colSpan={14} className="p-0">
                       <SupplierGroupHeader group={group} />
                     </td>
                   </tr>
@@ -1112,11 +1153,16 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           )}
                         </td>
                         <td className="py-3 px-3 text-right">
-                          {receivedItem ? (
-                            <b className="text-purple-700">{brNum(it.rendimento, 0)}</b>
-                          ) : (
-                            <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                          )}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={d.rendimento}
+                            placeholder="0"
+                            title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'}
+                            onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })}
+                            className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
                         </td>
                         <td className="py-3 px-3 text-sm font-semibold tabular-nums text-emerald-700">{it.entryTime ?? '—'}</td>
                         <td className={clsx('py-3 px-3 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
@@ -1125,6 +1171,15 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             {receivedItem ? 'Recebido' : 'Previsão'}
                           </span>
                         </td>
+                        <td className="py-3 px-3 min-w-[180px]">
+                          <input
+                            value={d.notes}
+                            onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
+                            placeholder="Opcional"
+                            className="input !h-9 !text-sm !px-2"
+                            title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                          />
+                        </td>
                         <td className="py-3 px-3 text-right">
                           <div className="inline-flex gap-1">
                             {canEdit && !receivedItem && (
@@ -1132,7 +1187,12 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                                 <Save size={17} />
                               </button>
                             )}
-                            {canEdit && (
+                            {canEdit && receivedItem && (
+                              <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação">
+                                <Save size={17} />
+                              </button>
+                            )}
+                            {canEdit && canBuyersView && (
                               <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
                                 <Pencil size={17} />
                               </button>
@@ -1151,7 +1211,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               ))}
               {pendingBySupplier.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="p-10 text-center text-slate-500">
+                  <td colSpan={14} className="p-10 text-center text-slate-500">
                     <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
                     <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
                   </td>
@@ -1180,7 +1240,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           </div>
                           <div className="flex gap-1 shrink-0">
                             {canEdit && !receivedItem && <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>}
-                            {canEdit && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
+                            {canEdit && receivedItem && <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>}
+                            {canEdit && canBuyersView && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
                             {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>}
                           </div>
                         </div>
@@ -1188,7 +1249,19 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         {receivedItem ? (
                           <div className="grid grid-cols-3 gap-2 rounded-lg bg-white/70 p-2 text-center">
                             <div><div className="text-[11px] text-slate-500">Recebido</div><div className="font-bold text-emerald-700">{brNum(it.received, 0)}</div></div>
-                            <div><div className="text-[11px] text-slate-500">Rendimento</div><div className="font-bold text-purple-700">{brNum(it.rendimento, 0)}</div></div>
+                            <div>
+                              <label className="text-[11px] text-slate-500">Rendimento</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                value={d.rendimento}
+                                placeholder="0"
+                                title="Rendimento permanece editável após a conferência"
+                                onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })}
+                                className="input !h-9 !text-sm !px-2 text-center !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
+                            </div>
                             <div><div className="text-[11px] text-slate-500">Hor. conf.</div><div className="font-bold text-emerald-700">{it.entryTime ?? '—'}</div></div>
                           </div>
                         ) : (
@@ -1210,7 +1283,16 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           <span className={clsx('inline-flex rounded px-2 py-1 font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>{receivedItem ? 'Recebido' : 'Previsão'}</span>
                           <span className={clsx('font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</span>
                         </div>
-                        {it.notes && <div className="text-xs text-slate-600 break-words"><b>Observações:</b> {it.notes}</div>}
+                        <div>
+                          <label className="label !mb-1">Observações deste item</label>
+                          <input
+                            value={d.notes}
+                            onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
+                            placeholder="Opcional"
+                            className="input !h-9 !text-sm"
+                            title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                          />
+                        </div>
                       </div>
                     );
                   })}

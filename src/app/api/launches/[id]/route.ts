@@ -1,6 +1,6 @@
 import { prisma } from '../../../../lib/prisma';
 import { handler } from '../../../../lib/api-handler';
-import { getSession, requirePerm, routeId, HttpError } from '../../../../lib/session';
+import { getSession, requireAnyPerm, requirePerm, routeId, HttpError } from '../../../../lib/session';
 import {
   assertNoDuplicateReceived,
   launchInclude,
@@ -27,7 +27,12 @@ export const GET = handler(async (req, ctx) => {
 export const PUT = handler(async (req, ctx) => {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
-  requirePerm(session, 'launches', 'edit');
+  // A edição pelo histórico de entradas é liberada para quem pode consultar o histórico.
+  requireAnyPerm(session, [
+    { module: 'launches', action: 'edit' },
+    { module: 'reports', action: 'view' },
+    { module: 'launches', action: 'view' },
+  ]);
 
   const id = await routeId(ctx);
   const payload = launchSchema.parse(await req.json());

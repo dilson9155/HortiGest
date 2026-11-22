@@ -348,11 +348,13 @@ export default function ReceivedPage() {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right">
-                        {can('launches', 'edit') && (
-                          <Link href={`/lancamentos-compradores?edit=${it.launchId}`} className="inline-flex p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar lançamento">
-                            <Pencil size={17} />
-                          </Link>
-                        )}
+                        <Link
+                          href={`/lancamentos-compradores?edit=${it.launchId}`}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+                          title="Editar lançamento"
+                        >
+                          <Pencil size={16} /> Editar
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -393,11 +395,13 @@ export default function ReceivedPage() {
                         <span className="text-slate-500">Lançado:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b>
                       </div>
                     </div>
-                    {can('launches', 'edit') && (
-                      <Link href={`/lancamentos-compradores?edit=${it.launchId}`} className="p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar">
-                        <Pencil size={17} />
-                      </Link>
-                    )}
+                    <Link
+                      href={`/lancamentos-compradores?edit=${it.launchId}`}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+                      title="Editar"
+                    >
+                      <Pencil size={16} /> Editar
+                    </Link>
                   </div>
                   <div className="mt-3 grid grid-cols-4 text-center border-y border-slate-100 py-2">
                     <div><div className="text-xs text-slate-500 uppercase">Previsão</div><div className="font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</div></div>
