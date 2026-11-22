@@ -158,10 +158,11 @@ function deltaLabel(v: number) {
 export type LaunchMode = 'buyers' | 'reviewers';
 
 export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
-  const { can } = useAuth();
+  const { can, loading: loadingAuth } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const launchModule = mode === 'buyers' ? 'launches_buyers' : 'launches_reviewers';
+  const canView = can(launchModule, 'view');
   const canCreate = can(launchModule, 'create');
   const canEdit = can(launchModule, 'edit');
   const canDelete = can(launchModule, 'delete');
@@ -708,6 +709,17 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
   // Ao abrir pelo histórico, mostra também os campos do conferente para edição completa.
   const showFullEdit = !!editingLaunchId;
+
+  if (!loadingAuth && !canView) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h1 className="text-lg font-bold text-amber-900">Sem permissão</h1>
+        <p className="mt-1 text-sm text-amber-800">
+          Seu usuário não tem acesso ao módulo {mode === 'buyers' ? 'Lançamento compradores' : 'Lançamento conferentes'}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-[1800px] mx-auto">
