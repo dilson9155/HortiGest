@@ -5,6 +5,16 @@ import { HttpError } from './session';
 
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Horário do conferente no momento do lançamento (fuso de São Paulo). */
+function nowHHmm() {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date());
+}
+
 export const launchSchema = z.object({
   referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use AAAA-MM-DD).'),
   // Mantido por compatibilidade; o status real é por item.
@@ -37,7 +47,11 @@ export const launchSchema = z.object({
           .refine((v) => !v || timeRegex.test(v), 'Horário previsto inválido (use HH:mm).')
           .optional()
           .nullable(),
-        entryTime: z.string().regex(timeRegex, 'Horário inválido (use HH:mm).').optional().nullable(),
+        entryTime: z
+          .string()
+          .refine((v) => !v || timeRegex.test(v), 'Horário inválido (use HH:mm).')
+          .optional()
+          .nullable(),
         notes: z.string().max(1000).optional().nullable(),
         status: z.enum(['PREVISTO', 'RECEBIDO']).optional(),
       }),
@@ -79,18 +93,12 @@ export function normalizeLaunch(payload: LaunchPayload) {
 
   const items: NormalizedItem[] = payload.items.map((it) => {
     const itemStatus: ItemStatus =
-      it.status === 'RECEBIDO' ||
-      (!it.status && (!!it.entryTime || Number(it.received) > 0))
+      it.status === 'RECEBIDO' || !!it.entryTime || Number(it.received) > 0
         ? 'RECEBIDO'
         : 'PREVISTO';
+    // Horário do conferente nunca depende de digitação: registrado ao receber.
+    const entryTime = itemStatus === 'RECEBIDO' ? it.entryTime || nowHHmm() : null;
 
-    if (itemStatus === 'RECEBIDO' && !it.entryTime) {
-      throw new HttpError(
-        400,
-        'HORARIO_OBRIGATORIO',
-        'O horário do lançamento do conferente é obrigatório para todo produto recebido.',
-      );
-    }
     if (itemStatus === 'RECEBIDO' && !it.conferenteName?.trim()) {
       throw new HttpError(
         400,
@@ -111,7 +119,7 @@ export function normalizeLaunch(payload: LaunchPayload) {
       conferenteName: it.conferenteName?.trim() || null,
       dockId: it.dockId || null,
       forecastTime: it.forecastTime || null,
-      entryTime: it.entryTime || null,
+      entryTime,
       notes: it.notes ?? null,
       itemStatus,
     };
