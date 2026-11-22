@@ -134,7 +134,7 @@ export default function ReportsPage() {
     <div className="space-y-4">
       <SectionCard
         title="Relatórios de recebimento"
-        description="Filtre os produtos recebidos, veja previsão x recebido, delta, horário e observações, e gere o PDF."
+        description="Filtre os itens conferidos, veja previsão x recebido, delta, horário e observações, e gere o PDF."
         actions={
           <>
             <Button variant="secondary" onClick={clearFilters}>
@@ -190,7 +190,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-center p-10 gap-2 text-slate-500"><Spinner /> Carregando...</div>
         ) : items.length === 0 ? (
           <div className="p-6 text-center text-slate-500">
-            <FileText className="mx-auto mb-2 text-slate-300" /> Sem produtos recebidos para o filtro informado.
+            <FileText className="mx-auto mb-2 text-slate-300" /> Sem entradas conferidas para o filtro informado.
           </div>
         ) : (
           <>

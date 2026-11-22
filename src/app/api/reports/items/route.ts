@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const GET = handler(async (req) => {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
-  // O módulo "Produtos recebidos" usa a permissão de lançamentos;
+  // O histórico de entradas usa a permissão de lançamentos;
   // relatórios continuam acessíveis para quem tem permissão de relatórios.
   requireAnyPerm(session, [
     { module: 'reports', action: 'view' },
@@ -28,9 +28,14 @@ export const GET = handler(async (req) => {
   const q = (url.searchParams.get('q') ?? '').trim();
   const timeFrom = url.searchParams.get('timeFrom');
   const timeTo = url.searchParams.get('timeTo');
+  const history = url.searchParams.get('scope') === 'history';
+  const statusFilter = url.searchParams.get('status');
 
-  // Só entram no estoque real os lançamentos concluídos pelo conferente.
-  const where: any = { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
+  // Relatórios = estoque real (concluídos). Histórico = todos os registros.
+  const where: any = history
+    ? {}
+    : { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
+  if (statusFilter) where.status = statusFilter;
   if (startDate || endDate) {
     where.launch = where.launch ?? {};
     where.launch.referenceDate = {};
@@ -74,6 +79,7 @@ export const GET = handler(async (req) => {
       launch: {
         select: {
           referenceDate: true,
+          status: true,
           dockName: true,
           conferenteName: true,
           compradorName: true,
@@ -88,6 +94,7 @@ export const GET = handler(async (req) => {
     .map((it) => ({
       id: it.id,
       launchId: it.launchId,
+      status: it.status,
       referenceDate: (it.launch as any).referenceDate,
       productName: it.productName,
       supplierName: it.supplierName,

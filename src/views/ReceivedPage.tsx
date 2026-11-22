@@ -25,6 +25,7 @@ type Named = { id: string; name: string; active?: boolean };
 type ReceivedItem = {
   id: string;
   launchId: string;
+  status: 'PREVISTO' | 'RECEBIDO';
   referenceDate: string;
   productName: string;
   supplierName: string;
@@ -61,6 +62,7 @@ const emptyFilters = {
   conferenteId: '',
   compradorId: '',
   userId: '',
+  status: '',
   delta: '',
   q: '',
   timeFrom: '',
@@ -96,7 +98,7 @@ export default function ReceivedPage() {
   }
 
   function query() {
-    const qs = new URLSearchParams();
+    const qs = new URLSearchParams({ scope: 'history' });
     Object.entries(filters).forEach(([k, v]) => {
       if (v) qs.set(k, v);
     });
@@ -111,7 +113,7 @@ export default function ReceivedPage() {
       setItems(r.data.items);
       setTotals(r.data.totals);
     } else {
-      toast('error', errorMessage(r, 'Falha ao carregar produtos recebidos.'));
+      toast('error', errorMessage(r, 'Falha ao carregar o histórico de entradas.'));
     }
   }
 
@@ -163,7 +165,7 @@ export default function ReceivedPage() {
       const url = URL.createObjectURL(r.blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `produtos-recebidos-${Date.now()}.pdf`;
+      a.download = `historico-entradas-${Date.now()}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -182,8 +184,8 @@ export default function ReceivedPage() {
   return (
     <div className="space-y-5 max-w-[1500px] mx-auto">
       <SectionCard
-        title="Produtos recebidos"
-        description="Estoque real: todos os itens conferidos, com previsão, recebido, rendimento (informado à mão, base de pagamento ao fornecedor), delta, horário, doca, comprador, conferente e observações."
+        title="Histórico de entradas"
+        description="Todos os registros de entradas, pendentes ou conferidos, com previsão, recebido, rendimento, delta, horário, doca, comprador, conferente e opção de editar."
         actions={
           <>
             <Button variant="secondary" onClick={() => setFilters(emptyFilters)}>
@@ -256,6 +258,14 @@ export default function ReceivedPage() {
             </div>
           )}
           <div>
+            <label className="label">Situação</label>
+            <Select value={filters.status} onChange={(e) => set('status', e.target.value)}>
+              <option value="">Todas</option>
+              <option value="PREVISTO">Previsão (aguardando)</option>
+              <option value="RECEBIDO">Recebido (conferido)</option>
+            </Select>
+          </div>
+          <div>
             <label className="label">Diferença</label>
             <Select value={filters.delta} onChange={(e) => set('delta', e.target.value)}>
               <option value="">Todas</option>
@@ -279,7 +289,7 @@ export default function ReceivedPage() {
 
       <SectionCard
         title="Resultado"
-        description={`${items.length} produto(s) recebido(s)${activeFilters ? ` · ${activeFilters} filtro(s) ativo(s)` : ''}`}
+        description={`${items.length} registro(s) no histórico${activeFilters ? ` · ${activeFilters} filtro(s) ativo(s)` : ''}`}
         actions={<Badge tone={loading ? 'slate' : 'green'}>{loading ? 'Carregando' : 'Atualizado'}</Badge>}
       >
         {loading && items.length === 0 ? (
@@ -287,7 +297,7 @@ export default function ReceivedPage() {
         ) : items.length === 0 ? (
           <div className="p-10 text-center text-slate-500">
             <CheckCircle2 className="mx-auto mb-2 text-emerald-300" size={36} />
-            Nenhum produto recebido para os filtros informados.
+            Nenhuma entrada encontrada para os filtros informados.
           </div>
         ) : (
           <>
@@ -307,6 +317,7 @@ export default function ReceivedPage() {
                     <th className="py-3 px-3">Conferente</th>
                     <th className="py-3 px-3">Comprador</th>
                     <th className="py-3 px-3">Observações</th>
+                    <th className="py-3 px-3">Situação</th>
                     <th className="py-3 px-3 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -328,6 +339,14 @@ export default function ReceivedPage() {
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.conferenteName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.compradorName}</td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={clsx(
+                          'inline-flex rounded px-2 py-1 text-xs font-bold uppercase',
+                          it.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
+                        )}>
+                          {it.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
+                        </span>
+                      </td>
                       <td className="py-3 px-3 text-right">
                         {can('launches', 'edit') && (
                           <Link href={`/lancamentos?edit=${it.launchId}`} className="inline-flex p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar lançamento">
@@ -346,7 +365,7 @@ export default function ReceivedPage() {
                       <td className="py-3 px-3 text-right">{brNum(totals.received, 0)}</td>
                       <td className="py-3 px-3 text-right">{brNum(totals.rendimento, 0)}</td>
                       <td className="py-3 px-3 text-right">{deltaLabel(totals.delta)}</td>
-                      <td colSpan={5} />
+                      <td colSpan={6} />
                     </tr>
                   </tfoot>
                 )}
@@ -362,6 +381,12 @@ export default function ReceivedPage() {
                       <div className="text-xs text-slate-600 break-words">
                         {it.supplierName} · {dateBR(it.referenceDate)}
                       </div>
+                      <span className={clsx(
+                        'inline-flex rounded px-2 py-0.5 text-[11px] font-bold uppercase',
+                        it.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
+                      )}>
+                        {it.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
+                      </span>
                       <div className="text-xs break-words">
                         <span className="text-slate-500">Previsto:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b>
                         {' · '}

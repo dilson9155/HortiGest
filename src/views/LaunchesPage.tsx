@@ -17,7 +17,6 @@ import {
   History,
   Save,
   Send,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -35,6 +34,7 @@ type ItemStatus = 'PREVISTO' | 'RECEBIDO';
 
 type Row = {
   _key: string;
+  launchId: string;
   productId: string;
   supplierId: string;
   // Detalhes próprios de cada item lançado.
@@ -53,6 +53,14 @@ type Row = {
 };
 
 type RowDefaults = Partial<Pick<Row, 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
+
+// Rascunho do conferente por item, mantido enquanto ele confere o grupo.
+type ReceiveDraft = {
+  conferenteId: string;
+  received: number | '';
+  rendimento: number | '';
+  notes: string;
+};
 
 // Horário do conferente é registrado no momento do lançamento, sem digitação.
 function nowHHmm() {
@@ -90,6 +98,7 @@ function registryIdByName(list: NamedOption[], name: string) {
 function newRow(defaults: RowDefaults = {}): Row {
   return {
     _key: `r_${Math.random().toString(36).slice(2, 9)}`,
+    launchId: '',
     productId: '',
     supplierId: '',
     compradorId: defaults.compradorId ?? '',
@@ -112,11 +121,13 @@ function newRow(defaults: RowDefaults = {}): Row {
 function rowFromItem(it: any): Row {
   return {
     _key: it.id,
+    launchId: it.launchId ?? it.launch?.id ?? '',
     productId: it.productId,
     supplierId: it.supplierId,
-    forecast: Number(it.forecast),
-    received: Number(it.received),
-    rendimento: Number(it.rendimento),
+    // Zero vira vazio: o "0" aparece só como placeholder e some ao digitar.
+    forecast: Number(it.forecast) || '',
+    received: Number(it.received) || '',
+    rendimento: Number(it.rendimento) || '',
     compradorId: it.compradorId ?? '',
     compradorName: it.compradorName ?? '',
     conferenteId: it.conferenteId ?? '',
@@ -180,6 +191,7 @@ export default function LaunchesPage() {
   const [loadingLists, setLoadingLists] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
+  const [receiveDrafts, setReceiveDrafts] = useState<Record<string, ReceiveDraft>>({});
 
   async function loadOptions() {
     const [p, s, d, c, f] = await Promise.all([
@@ -243,7 +255,7 @@ export default function LaunchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  // Permite abrir o lançamento diretamente pelo módulo "Produtos recebidos".
+  // Permite abrir o lançamento diretamente pelo histórico de entradas.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('edit');
     if (id) {
@@ -314,11 +326,11 @@ export default function LaunchesPage() {
   }
 
   // Payload reaproveitado pelo botão superior e pelo disco de cada linha.
-  function buildPayload(list: Row[]) {
+  function buildPayload(list: Row[], referenceDate = date, notesValue = notes) {
     const first = list[0];
     return {
-      referenceDate: date,
-      notes: notes || null,
+      referenceDate,
+      notes: notesValue || null,
       // Snapshots do lançamento espelham o primeiro item (compatibilidade).
       dockId: first?.dockId || null,
       compradorId: first?.compradorId || null,
@@ -387,12 +399,11 @@ export default function LaunchesPage() {
     setLoading(false);
 
     if (r.ok) {
-      const nReceived = valid.filter(isReceivedRow).length;
       toast(
         'success',
         editingLaunchId
-          ? 'Lançamento atualizado. Os itens recebidos foram movidos para "Produtos recebidos".'
-          : `${valid.length} produto(s) salvo(s). ${nReceived} recebido(s) enviado(s) para "Produtos recebidos".`,
+          ? 'Lançamento atualizado. Os itens conferidos aparecem no histórico de entradas.'
+          : `${valid.length} previsão(ões) salva(s) e agrupada(s) para o conferente.`,
       );
       doClear();
       loadLists();
@@ -537,17 +548,6 @@ export default function LaunchesPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [rows, compradorName, conferenteName]);
 
-  const receivedFlat = useMemo(
-    () =>
-      received.flatMap((l) =>
-        (l.items ?? []).map((it: any) => ({
-          ...it,
-          launch: l,
-        })),
-      ),
-    [received],
-  );
-
   const pendingFlat = useMemo(
     () =>
       pending.flatMap((l) =>
@@ -609,6 +609,88 @@ export default function LaunchesPage() {
     );
   }
 
+  // Rascunho do conferente: valores gravados aparecem como vazio quando são zero.
+  function draftFor(it: any): ReceiveDraft {
+    return receiveDrafts[it.id] ?? {
+      conferenteId: it.conferenteId || '',
+      received: Number(it.received) || '',
+      rendimento: Number(it.rendimento) || '',
+      notes: it.notes ?? '',
+    };
+  }
+
+  function setDraft(itemId: string, patch: Partial<ReceiveDraft>) {
+    setReceiveDrafts((prev) => {
+      const base: ReceiveDraft = prev[itemId] ?? {
+        conferenteId: '',
+        received: '',
+        rendimento: '',
+        notes: '',
+      };
+      return { ...prev, [itemId]: { ...base, ...patch } };
+    });
+  }
+
+  // Salva somente o item conferido, preservando os demais do mesmo lançamento.
+  async function saveConferenteItem(it: any) {
+    if (!canEdit) {
+      toast('error', 'Sem permissão para editar lançamentos.');
+      return;
+    }
+    const draft = draftFor(it);
+    if (!draft.conferenteId) {
+      toast('warning', 'Selecione o conferente deste item.');
+      return;
+    }
+    if (Number(draft.received) <= 0) {
+      toast('warning', 'Informe a quantidade recebida.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const fullRes = await api.get(`/launches/${it.launchId}`);
+      if (!fullRes.ok) throw fullRes;
+      const full = (fullRes.data as any) ?? {};
+      const stored: Row[] = (full.items ?? []).map(rowFromItem);
+      const row: Row = {
+        ...rowFromItem(it),
+        conferenteId: draft.conferenteId,
+        conferenteName: conferentes.find((c) => c.id === draft.conferenteId)?.name ?? '',
+        received: draft.received,
+        rendimento: draft.rendimento,
+        notes: draft.notes,
+        status: 'RECEBIDO',
+        entryTime: it.entryTime || nowHHmm(),
+      };
+      const merged = stored.map((x) => (x._key === it.id ? row : x));
+      if (!merged.some((x) => x._key === it.id)) merged.push(row);
+
+      const res = await api.put(
+        `/launches/${it.launchId}`,
+        buildPayload(merged, isoDate(full.referenceDate), full.notes ?? ''),
+      );
+      if (!res.ok) {
+        toast('error', errorMessage(res, 'Falha ao salvar recebimento.'));
+        return;
+      }
+      setReceiveDrafts((prev) => {
+        const next = { ...prev };
+        delete next[it.id];
+        return next;
+      });
+      toast('success', 'Recebimento salvo. O item permanece agrupado até o lançamento ser concluído.');
+      loadLists();
+    } catch (err) {
+      toast('error', errorMessage(err, 'Falha ao salvar recebimento.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Ao abrir pelo histórico, mostra também os campos do conferente para edição completa.
+  const showFullEdit = !!editingLaunchId;
+
   return (
     <div className="space-y-6 max-w-[1800px] mx-auto">
       <ConfirmDialog
@@ -639,10 +721,10 @@ export default function LaunchesPage() {
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {editingLaunchId ? 'Editando lançamento' : 'Lançamentos — previsão e recebimento'}
+                {editingLaunchId ? 'Editando lançamento' : 'Lançamento compradores'}
               </h2>
               <p className="text-sm text-slate-600">
-                Comprador informa a previsão, conferente informa o que chegou, o horário e as observações.
+                Registre produto, fornecedor, comprador, doca, horário previsto e previsão. Tudo salvo fica agrupado para o conferente.
               </p>
             </div>
           </div>
@@ -653,7 +735,7 @@ export default function LaunchesPage() {
             <Button variant="ghost" onClick={clearForm}>Limpar</Button>
             <Button onClick={handleSave} disabled={!(editingLaunchId ? canEdit : canCreate) || loading} className="!h-11 !px-6 !text-base">
               {loading ? <Spinner /> : <Send size={18} />}
-              {editingLaunchId ? 'Salvar alterações' : 'Salvar lançamento'}
+              {editingLaunchId ? 'Salvar alterações' : 'Salvar previsão'}
             </Button>
           </div>
         </header>
@@ -685,20 +767,6 @@ export default function LaunchesPage() {
                 {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </Select>
             </div>
-            <div className="min-w-[150px] flex-1">
-              <label className="label">Conferente padrão</label>
-              <Select
-                value={conferenteId}
-                onChange={(e) => {
-                  setConferenteId(e.target.value);
-                  setConferenteName(conferentes.find((c) => c.id === e.target.value)?.name ?? '');
-                }}
-                className="!h-9 !text-sm"
-              >
-                <option value="">Selecione...</option>
-                {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-            </div>
             <div className="min-w-[160px] flex-[1.2]">
               <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" className="!h-9 !text-sm" />
             </div>
@@ -707,7 +775,7 @@ export default function LaunchesPage() {
             </Button>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Padrões para novos itens. Comprador e conferente vêm somente dos cadastros; cada item pode ter os próprios responsáveis e horários.
+            Padrões para novos itens. O comprador vem somente dos cadastros; cada item pode ter seu próprio comprador, doca e horário previsto.
           </p>
         </div>
 
@@ -715,27 +783,25 @@ export default function LaunchesPage() {
         <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10">
-              {/* Grupos de colunas */}
-              <tr className="text-[11px] font-bold uppercase tracking-wide text-white">
-                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-2 py-1.5 text-center min-w-[220px] text-[15px]">Produto</th>
-                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-2 py-1.5 text-center min-w-[180px] text-[15px]">Fornecedor</th>
-                <th colSpan={4} className="border border-sky-800 bg-sky-700 px-1.5 py-1 text-center">Previsão — comprador</th>
-                <th colSpan={4} className="border border-emerald-800 bg-emerald-700 px-1.5 py-1 text-center">Recebimento — conferente</th>
-                <th colSpan={3} className="border border-slate-800 bg-slate-700 px-1.5 py-1 text-center">Resultado</th>
-                <th rowSpan={2} className="border border-slate-300 bg-slate-700 px-1.5 py-1.5 w-20">Ações</th>
-              </tr>
-              <tr className="text-xs font-semibold text-slate-800">
-                <th className="border border-sky-200 bg-sky-100 px-2 py-1 text-left min-w-[150px]">Comprador</th>
-                <th className="border border-sky-200 bg-sky-100 px-2 py-1 min-w-[100px]">Hor. previsto</th>
-                <th className="border border-sky-200 bg-sky-100 px-2 py-1 min-w-[110px]">Docа</th>
-                <th className="border border-sky-200 bg-sky-100 px-2 py-1 min-w-[85px]">Previsão</th>
-                <th className="border border-emerald-200 bg-emerald-100 px-2 py-1 text-left min-w-[150px]">Conferente</th>
-                <th className="border border-emerald-200 bg-emerald-100 px-2 py-1 min-w-[100px]">Hor. conf. (auto)</th>
-                <th className="border border-emerald-200 bg-emerald-100 px-2 py-1 min-w-[85px]">Recebido</th>
-                <th className="border border-emerald-200 bg-emerald-100 px-2 py-1 min-w-[85px]">Rendimento</th>
-                <th className="border border-slate-300 bg-slate-100 px-2 py-1 min-w-[70px]">Delta</th>
-                <th className="border border-slate-300 bg-slate-100 px-2 py-1 min-w-[100px]">Situação</th>
-                <th className="border border-slate-300 bg-slate-100 px-2 py-1 min-w-[180px]">Observações</th>
+              <tr className="text-xs font-semibold text-white bg-slate-700">
+                <th className="border border-slate-300 px-2 py-2 text-center min-w-[220px] text-[15px]">Produto</th>
+                <th className="border border-slate-300 px-2 py-2 text-center min-w-[180px] text-[15px]">Fornecedor</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2 text-left min-w-[150px]">Comprador</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[100px]">Hor. previsto</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[110px]">Docа</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[85px]">Previsão</th>
+                {showFullEdit && (
+                  <>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-left min-w-[150px]">Conferente</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[100px]">Hor. conf. (auto)</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[85px]">Recebido</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[85px]">Rendimento</th>
+                    <th className="border border-slate-300 px-2 py-2 min-w-[70px]">Delta</th>
+                    <th className="border border-slate-300 px-2 py-2 min-w-[100px]">Situação</th>
+                    <th className="border border-slate-300 px-2 py-2 min-w-[180px]">Observações</th>
+                  </>
+                )}
+                <th className="border border-slate-300 px-1.5 py-2 w-20">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -791,51 +857,55 @@ export default function LaunchesPage() {
                     <td className="border border-sky-100 p-1.5 align-middle">
                       <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </td>
-                    <td className="border border-emerald-100 p-1.5 align-middle">
-                      <select
-                        value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
-                        onChange={(e) => {
-                          const found = conferentes.find((c) => c.id === e.target.value);
-                          setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
-                        }}
-                        className="input !h-9 !text-sm !px-2"
-                        title="Somente conferentes cadastrados"
-                      >
-                        <option value="">Selecione...</option>
-                        {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    </td>
-                    <td className="border border-emerald-100 p-1.5 align-middle">
-                      <div
-                        className="flex h-9 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50/60 px-2 text-sm font-semibold tabular-nums text-emerald-800"
-                        title="Registrado automaticamente ao informar a quantidade recebida"
-                      >
-                        {r.entryTime || '—'}
-                      </div>
-                    </td>
-                    <td className="border border-emerald-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                    </td>
-                    <td className="border border-emerald-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                    </td>
-                    <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
-                      {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
-                    </td>
-                    <td className="border border-slate-200 p-1.5 text-center align-middle">
-                      <span
-                        title="Automático: muda para Recebido quando o conferente informa a quantidade recebida"
-                        className={clsx(
-                          'inline-flex w-full items-center justify-center rounded px-1 py-1.5 text-xs font-bold uppercase',
-                          r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
-                        )}
-                      >
-                        {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
-                      </span>
-                    </td>
-                    <td className="border border-slate-200 p-1.5 align-middle">
-                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" />
-                    </td>
+                    {showFullEdit && (
+                      <>
+                        <td className="border border-emerald-100 p-1.5 align-middle">
+                          <select
+                            value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
+                            onChange={(e) => {
+                              const found = conferentes.find((c) => c.id === e.target.value);
+                              setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
+                            }}
+                            className="input !h-9 !text-sm !px-2"
+                            title="Somente conferentes cadastrados"
+                          >
+                            <option value="">Selecione...</option>
+                            {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </td>
+                        <td className="border border-emerald-100 p-1.5 align-middle">
+                          <div
+                            className="flex h-9 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50/60 px-2 text-sm font-semibold tabular-nums text-emerald-800"
+                            title="Registrado automaticamente ao informar a quantidade recebida"
+                          >
+                            {r.entryTime || '—'}
+                          </div>
+                        </td>
+                        <td className="border border-emerald-100 p-1.5 align-middle">
+                          <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        </td>
+                        <td className="border border-emerald-100 p-1.5 align-middle">
+                          <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        </td>
+                        <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
+                          {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
+                        </td>
+                        <td className="border border-slate-200 p-1.5 text-center align-middle">
+                          <span
+                            title="Automático: muda para Recebido quando o conferente informa a quantidade recebida"
+                            className={clsx(
+                              'inline-flex w-full items-center justify-center rounded px-1 py-1.5 text-xs font-bold uppercase',
+                              r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
+                            )}
+                          >
+                            {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
+                          </span>
+                        </td>
+                        <td className="border border-slate-200 p-1.5 align-middle">
+                          <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" />
+                        </td>
+                      </>
+                    )}
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -862,7 +932,7 @@ export default function LaunchesPage() {
           <button onClick={addRow} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
             <Plus size={17} /> Adicionar linha
           </button>
-          <span className="text-xs text-slate-500">Você pode salvar item por item: preencha o que tiver agora e complete depois ao editar. Use <b>Tab</b> para percorrer as colunas. Ao informar o recebido, o item vira <b>Recebido</b> e o horário é registrado automaticamente.</span>
+          <span className="text-xs text-slate-500">Você pode salvar item por item. Use <b>Tab</b> para percorrer as colunas. Cada previsão salva fica disponível no módulo <b>Lançamento conferentes</b>.</span>
         </div>
       </section>
 
@@ -874,10 +944,10 @@ export default function LaunchesPage() {
               <ListChecks size={24} />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Entradas / previsões pendentes</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Lançamento conferentes</h2>
               <p className="text-sm text-slate-600">
-                Todas as entradas aparecem aqui. Enquanto o conferente não concluir o lançamento, todos os itens ficam agrupados nesta lista.
-                Quando todos os itens forem recebidos, o lançamento vai para o módulo <b>Produtos recebidos</b>.
+                Tudo que os compradores lançam fica agrupado aqui por fornecedor. Confira o que chegou e salve item por item; o lançamento só vai para o
+                histórico quando todos os itens estiverem conferidos.
               </p>
             </div>
           </div>
@@ -889,7 +959,7 @@ export default function LaunchesPage() {
               href="/recebidos"
               className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 transition"
             >
-              <CheckCircle2 size={18} /> Produtos recebidos <ArrowRight size={17} />
+              <History size={18} /> Histórico de entradas <ArrowRight size={17} />
             </Link>
           </div>
         </header>
@@ -955,10 +1025,14 @@ export default function LaunchesPage() {
                 <th className="py-3 px-3">Produto</th>
                 <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
-                <th className="py-3 px-3">Horários prev./lanç.</th>
+                <th className="py-3 px-3">Hor. prev.</th>
                 <th className="py-3 px-3">Comprador</th>
                 <th className="py-3 px-3">Conferente</th>
-                <th className="py-3 px-3">Observações</th>
+                <th className="py-3 px-3 text-right">Recebido</th>
+                <th className="py-3 px-3 text-right">Rendimento</th>
+                <th className="py-3 px-3">Hor. conf.</th>
+                <th className="py-3 px-3 text-right">Delta</th>
+                <th className="py-3 px-3">Situação</th>
                 <th className="py-3 px-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -966,44 +1040,85 @@ export default function LaunchesPage() {
               {pendingBySupplier.map((group) => (
                 <Fragment key={group.key}>
                   <tr className="bg-slate-50 border-b-2 border-brand-100">
-                    <td colSpan={9} className="p-0">
+                    <td colSpan={13} className="p-0">
                       <SupplierGroupHeader group={group} />
                     </td>
                   </tr>
-                  {!collapsedSuppliers.has(group.key) && group.items.map((it: any) => (
-                    <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
-                      <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                      <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[220px] max-w-[320px] leading-snug" title={it.productName ?? ''}>{it.productName}</td>
-                      <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
-                      <td className="py-3 px-3 text-xs whitespace-nowrap">
-                        <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
-                        <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b></div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.conferenteName || it.launch.conferenteName || ''}>{it.conferenteName || it.launch.conferenteName || '—'}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="inline-flex gap-1">
-                          {canEdit && (
-                            <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
-                              <Pencil size={17} />
-                            </button>
+                  {!collapsedSuppliers.has(group.key) && group.items.map((it: any) => {
+                    const d = draftFor(it);
+                    const receivedItem = it.status === 'RECEBIDO';
+                    const diff = deltaOf(it.forecast, it.received);
+                    return (
+                      <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
+                        <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
+                        <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[220px] max-w-[320px] leading-snug" title={it.productName ?? ''}>{it.productName}</td>
+                        <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
+                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
+                        <td className="py-3 px-3 text-xs whitespace-nowrap"><b className="text-sky-700">{it.forecastTime ?? '—'}</b></td>
+                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
+                        <td className="py-3 px-3 min-w-[150px]">
+                          {receivedItem ? (
+                            <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
+                          ) : (
+                            <select
+                              value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
+                              onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
+                              className="input !h-9 !text-sm !px-2"
+                              title="Somente conferentes cadastrados"
+                            >
+                              <option value="">Selecione...</option>
+                              {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
                           )}
-                          {canDelete && (
-                            <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
-                              <Trash2 size={17} />
-                            </button>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {receivedItem ? (
+                            <b className="text-emerald-700">{brNum(it.received, 0)}</b>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {receivedItem ? (
+                            <b className="text-purple-700">{brNum(it.rendimento, 0)}</b>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-sm font-semibold tabular-nums text-emerald-700">{it.entryTime ?? '—'}</td>
+                        <td className={clsx('py-3 px-3 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
+                            {receivedItem ? 'Recebido' : 'Previsão'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="inline-flex gap-1">
+                            {canEdit && !receivedItem && (
+                              <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento deste item">
+                                <Save size={17} />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
+                                <Pencil size={17} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
+                                <Trash2 size={17} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </Fragment>
               ))}
               {pendingBySupplier.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-10 text-center text-slate-500">
+                  <td colSpan={13} className="p-10 text-center text-slate-500">
                     <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
                     <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
                   </td>
@@ -1019,31 +1134,53 @@ export default function LaunchesPage() {
               <SupplierGroupHeader group={group} />
               {!collapsedSuppliers.has(group.key) && (
                 <div className="space-y-3 p-3">
-                  {group.items.map((it: any) => (
-                    <div key={it.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="font-bold text-slate-800 text-sm break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
-                          <div className="text-xs text-slate-500">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</div>
+                  {group.items.map((it: any) => {
+                    const d = draftFor(it);
+                    const receivedItem = it.status === 'RECEBIDO';
+                    const diff = deltaOf(it.forecast, it.received);
+                    return (
+                      <div key={it.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-800 text-sm break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
+                            <div className="text-xs text-slate-500">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')} · Previsão: {brNum(it.forecast, 0)}</div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            {canEdit && !receivedItem && <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>}
+                            {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
+                            {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>}
+                          </div>
                         </div>
-                        <div className="flex gap-1 shrink-0">
-                          {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md"><Pencil size={17} /></button>}
-                          {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md"><Trash2 size={17} /></button>}
+                        <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.compradorName || it.launch.compradorName || '—'} <b>Doca:</b> {it.dockName || it.launch.dockName || '—'} <b>Prev:</b> {it.forecastTime ?? '—'}</div>
+                        {receivedItem ? (
+                          <div className="grid grid-cols-3 gap-2 rounded-lg bg-white/70 p-2 text-center">
+                            <div><div className="text-[11px] text-slate-500">Recebido</div><div className="font-bold text-emerald-700">{brNum(it.received, 0)}</div></div>
+                            <div><div className="text-[11px] text-slate-500">Rendimento</div><div className="font-bold text-purple-700">{brNum(it.rendimento, 0)}</div></div>
+                            <div><div className="text-[11px] text-slate-500">Hor. conf.</div><div className="font-bold text-emerald-700">{it.entryTime ?? '—'}</div></div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2 rounded-lg bg-white/70 p-2">
+                            <div>
+                              <label className="label !mb-1">Conferente</label>
+                              <select value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)} onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })} className="input !h-9 !text-sm">
+                                <option value="">Selecione...</option>
+                                {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input type="number" min="0" step="0.001" label="Recebido" value={d.received} onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="0" className="!h-9 !text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                              <Input type="number" min="0" step="0.001" label="Rendimento" value={d.rendimento} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="0" className="!h-9 !text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={clsx('inline-flex rounded px-2 py-1 font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>{receivedItem ? 'Recebido' : 'Previsão'}</span>
+                          <span className={clsx('font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</span>
                         </div>
+                        {it.notes && <div className="text-xs text-slate-600 break-words"><b>Observações:</b> {it.notes}</div>}
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-center border-y border-slate-200 py-2">
-                        <div><div className="text-[11px] text-slate-500">Previsão (cx)</div><div className="font-bold text-blue-700">{brNum(it.forecast, 0)}</div></div>
-                        <div><div className="text-[11px] text-slate-500">Docа</div><div className="font-bold text-slate-700 text-xs break-words">{it.dockName || it.launch.dockName || '—'}</div></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg bg-white/70 p-2 text-center">
-                        <div><div className="text-[11px] text-slate-500">Horário previsto</div><div className="font-bold text-sky-700">{it.forecastTime ?? '—'}</div></div>
-                        <div><div className="text-[11px] text-slate-500">Horário lançado</div><div className="font-bold text-emerald-700">{it.entryTime ?? '—'}</div></div>
-                      </div>
-                      <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.compradorName || it.launch.compradorName || '—'}</div>
-                      <div className="text-xs text-slate-600 break-words"><b>Conferente:</b> {it.conferenteName || it.launch.conferenteName || '—'}</div>
-                      {it.notes && <div className="text-xs text-slate-600 break-words"><b>Observações:</b> {it.notes}</div>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1056,11 +1193,11 @@ export default function LaunchesPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-          <Badge tone="sky">{pendingFlat.length} entrada(s) pendente(s)</Badge>
-          <Badge tone="green">{receivedFlat.length} produto(s) recebido(s) no filtro</Badge>
+          <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
+          <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
           <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
           <Link href="/recebidos" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-            Abrir módulo Produtos recebidos <ArrowRight size={15} />
+            Abrir histórico de entradas <ArrowRight size={15} />
           </Link>
           {loadingLists && <Spinner />}
         </div>

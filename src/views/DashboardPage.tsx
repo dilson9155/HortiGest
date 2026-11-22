@@ -79,7 +79,7 @@ export default function DashboardPage() {
         sub: `${brNum(c.deltaPercent, 1)}% sobre a previsão`,
       },
       { label: 'Atendimento', value: `${brNum(c.atendimentoPercent, 1)}%`, tone: 'info', icon: <PackageCheck size={21} /> },
-      { label: 'Produtos recebidos', value: c.totalLaunchItems, tone: 'good', icon: <ClipboardCheck size={21} /> },
+      { label: 'Itens conferidos', value: c.totalLaunchItems, tone: 'good', icon: <ClipboardCheck size={21} /> },
     );
   }
 
@@ -195,7 +195,7 @@ export default function DashboardPage() {
             </SectionCard>
           </div>
 
-          <SectionCard title="Produtos recebidos recentes">
+          <SectionCard title="Entradas conferidas recentes">
             <div className="overflow-auto">
               <table className="w-full text-base">
                 <thead className="text-left text-sm font-semibold text-slate-600">

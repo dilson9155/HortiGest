@@ -56,7 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const items: Item[] = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', action: 'view' },
     { to: '/lancamentos', label: 'Lançamentos', icon: ClipboardList, module: 'launches', action: 'view' },
-    { to: '/recebidos', label: 'Produtos recebidos', icon: CheckCircle2, module: 'launches', action: 'view' },
+    { to: '/recebidos', label: 'Histórico de entradas', icon: CheckCircle2, module: 'launches', action: 'view' },
     { to: '/produtos', label: 'Produtos', icon: Boxes, module: 'products', action: 'view' },
     { to: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'suppliers', action: 'view' },
     { to: '/docas', label: 'Docas', icon: Warehouse, module: 'products', action: 'view' },

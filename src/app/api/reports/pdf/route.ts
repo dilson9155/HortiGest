@@ -70,10 +70,15 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get('q') ?? '').trim();
   const timeFrom = url.searchParams.get('timeFrom');
   const timeTo = url.searchParams.get('timeTo');
+  const history = url.searchParams.get('scope') === 'history';
+  const statusFilter = url.searchParams.get('status');
 
   // ---------- 1) Buscar dados ----------
-  // Só entram no estoque real os lançamentos concluídos pelo conferente.
-  const where: any = { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
+  // Relatórios = estoque real (concluídos). Histórico = todos os registros.
+  const where: any = history
+    ? {}
+    : { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
+  if (statusFilter) where.status = statusFilter;
   if (startDate || endDate) {
     where.launch = where.launch ?? {};
     where.launch.referenceDate = {};
@@ -184,9 +189,9 @@ export async function GET(req: Request) {
         margin: 28,
         bufferPages: true,
         info: {
-          Title: `Relatório de Recebimento — ${companyName}`,
+          Title: `${history ? 'Histórico de Entradas' : 'Relatório de Recebimento'} — ${companyName}`,
           Author: companyName,
-          Subject: 'Relatório de Recebimento Hortifrúti',
+          Subject: history ? 'Histórico de Entradas Hortifrúti' : 'Relatório de Recebimento Hortifrúti',
           Creator: 'HortiGest',
         },
       });
@@ -262,7 +267,7 @@ export async function GET(req: Request) {
         doc.fillColor('#ccfbf1').font('Helvetica').fontSize(9).text('Controle de Recebimento de Hortifrúti', textX, MARGIN + 34, { width: 340, lineBreak: false });
 
         const rightX = pageW - MARGIN - 280;
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text('RELATÓRIO DE RECEBIMENTO', rightX, MARGIN + 9, { width: 280, align: 'right', lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text(history ? 'HISTÓRICO DE ENTRADAS' : 'RELATÓRIO DE RECEBIMENTO', rightX, MARGIN + 9, { width: 280, align: 'right', lineBreak: false });
         doc.fillColor('#ccfbf1').font('Helvetica').fontSize(8.5)
           .text(`Emissão: ${emittedAt}`, rightX, MARGIN + 28, { width: 280, align: 'right', lineBreak: false })
           .text(`Usuário: ${sessionName}`, rightX, MARGIN + 41, { width: 280, align: 'right', lineBreak: false });
@@ -313,7 +318,7 @@ export async function GET(req: Request) {
       drawHeader();
 
       let y = MARGIN + 62 + 12;
-      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text('Relatório Geral de Recebimento', MARGIN, y, { lineBreak: false });
+      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text(history ? 'Histórico Geral de Entradas' : 'Relatório Geral de Recebimento', MARGIN, y, { lineBreak: false });
       y += 20;
       doc.fillColor('#475569').font('Helvetica').fontSize(10).text(`Período: ${period}`, MARGIN, y, { lineBreak: false });
       y += 16;
