@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, setToken, getToken } from '../lib/api';
+import { hasModuleAccess } from '../lib/permissions';
 
 export type User = {
   id: string;
@@ -9,6 +10,7 @@ export type User = {
   email?: string | null;
   role?: { id: string; kind: 'ADMIN' | 'SUPERVISOR' | 'OPERADOR'; name: string } | null;
   permissions: Record<string, Record<string, boolean>>;
+  allowedModules?: string[] | null;
 };
 
 type AuthCtx = {
@@ -57,14 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can = (module: string, action: string) => {
     if (!user) return false;
     if (user.role?.kind === 'ADMIN') return true;
-    return !!user.permissions?.[module]?.[action];
+    return hasModuleAccess(user.permissions, module, action, user.allowedModules);
   };
 
   const canAny = (module: string, actions: string[]) => {
     if (!user) return false;
     if (user.role?.kind === 'ADMIN') return true;
-    const m = user.permissions?.[module] ?? {};
-    return actions.some((a) => m[a]);
+    return actions.some((action) => hasModuleAccess(user.permissions, module, action, user.allowedModules));
   };
 
   return (

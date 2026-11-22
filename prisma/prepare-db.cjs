@@ -31,6 +31,9 @@ function run(command, args) {
 console.log('[PREPARE-DB] Aplicando schema no banco...');
 run('npx', ['prisma', 'db', 'push', '--skip-generate']);
 
+console.log('[PREPARE-DB] Atualizando módulos de lançamento dos perfis...');
+run('node', ['prisma/backfill-launch-modules.cjs']);
+
 console.log('[PREPARE-DB] Migrando histórico de recebimentos...');
 run('node', ['prisma/backfill-recebimento.cjs']);
 

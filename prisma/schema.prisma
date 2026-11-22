@@ -75,6 +75,19 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// Módulos liberados individualmente para cada usuário.
+// Lista vazia = herda todos os módulos permitidos pelo perfil.
+model UserModulePermission {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, module])
+  @@map("user_module_permissions")
+}
+
 model User {
   id           String    @id @default(cuid())
   username     String    @unique
@@ -88,8 +101,9 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  launches     Launch[]
-  auditLogs    AuditLog[] @relation("AuditUser")
+  launches          Launch[]
+  auditLogs         AuditLog[] @relation("AuditUser")
+  modulePermissions UserModulePermission[]
 
   @@index([username])
   @@index([active])

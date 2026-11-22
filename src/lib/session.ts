@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { verifyToken } from './auth';
 import { prisma } from './prisma';
-import type { Module, Actions, PermMap } from './permissions';
+import { hasModuleAccess, type Module, type Actions, type PermMap } from './permissions';
 
 export type SessionUser = {
   id: string;
@@ -12,6 +12,8 @@ export type SessionUser = {
   email: string | null;
   role: { id: string; kind: 'ADMIN' | 'SUPERVISOR' | 'OPERADOR'; name: string } | null;
   permissions: PermMap;
+  /** null = sem restrição individual; lista = apenas esses módulos. */
+  allowedModules: string[] | null;
 };
 
 export class HttpError extends Error {
@@ -60,6 +62,14 @@ export async function getSession(req?: Request): Promise<SessionUser | null> {
     (user.role?.permissions ?? []).map((p) => [p.module, p.actions as Record<Actions, boolean>]),
   )) as unknown as PermMap;
 
+  const modulePermissions = await prisma.userModulePermission.findMany({
+    where: { userId: user.id },
+    select: { module: true },
+  });
+  const allowedModules = modulePermissions.length
+    ? modulePermissions.map((p) => p.module)
+    : null;
+
   return {
     id: user.id,
     username: user.username,
@@ -69,6 +79,7 @@ export async function getSession(req?: Request): Promise<SessionUser | null> {
       ? { id: user.role.id, kind: user.role.kind, name: user.role.name }
       : null,
     permissions,
+    allowedModules,
   };
 }
 
@@ -87,7 +98,7 @@ export async function routeId(ctx: any): Promise<string> {
 export function requirePerm(session: SessionUser | null, module: Module, action: Actions) {
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
   if (session.role?.kind === 'ADMIN') return;
-  if (!session.permissions?.[module]?.[action]) {
+  if (!hasModuleAccess(session.permissions, module, action, session.allowedModules)) {
     throw new HttpError(403, 'FORBIDDEN', `Sem permissão para "${action}" em "${module}".`);
   }
 }
@@ -99,6 +110,8 @@ export function requireAnyPerm(
 ) {
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
   if (session.role?.kind === 'ADMIN') return;
-  const allowed = checks.some(({ module, action }) => session.permissions?.[module]?.[action]);
+  const allowed = checks.some(({ module, action }) =>
+    hasModuleAccess(session.permissions, module, action, session.allowedModules),
+  );
   if (!allowed) throw new HttpError(403, 'FORBIDDEN', 'Sem permissão para acessar este módulo.');
 }

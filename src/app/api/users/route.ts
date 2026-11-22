@@ -3,8 +3,11 @@ import { prisma } from '../../../lib/prisma';
 import { hashPassword } from '../../../lib/auth';
 import { handler } from '../../../lib/api-handler';
 import { getSession, requirePerm, HttpError } from '../../../lib/session';
+import { isModule } from '../../../lib/permissions';
 
 export const runtime = 'nodejs';
+
+const modulesSchema = z.array(z.string().refine(isModule, 'Módulo inválido.')).optional();
 
 const createSchema = z.object({
   username: z
@@ -17,6 +20,7 @@ const createSchema = z.object({
   password: z.string().min(8, 'Senha mínima de 8 caracteres.'),
   roleKind: z.enum(['ADMIN', 'SUPERVISOR', 'OPERADOR']),
   active: z.boolean().optional().default(true),
+  modules: modulesSchema,
 });
 
 const updateSchema = z.object({
@@ -25,7 +29,25 @@ const updateSchema = z.object({
   password: z.string().min(8).optional(),
   roleKind: z.enum(['ADMIN', 'SUPERVISOR', 'OPERADOR']).optional(),
   active: z.boolean().optional(),
+  modules: modulesSchema,
 });
+
+function shapeUser(user: any) {
+  const { modulePermissions, ...rest } = user;
+  return {
+    ...rest,
+    allowedModules: (modulePermissions ?? []).map((p: any) => p.module),
+  };
+}
+
+function moduleCreate(modules?: string[]) {
+  if (!modules) return {};
+  return {
+    modulePermissions: {
+      create: Array.from(new Set(modules)).map((module) => ({ module })),
+    },
+  };
+}
 
 export const GET = handler(async (req) => {
   const session = await getSession(req);
@@ -52,11 +74,14 @@ export const GET = handler(async (req) => {
       orderBy: { name: 'asc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { role: { select: { id: true, name: true, kind: true } } },
+      include: {
+        role: { select: { id: true, name: true, kind: true } },
+        modulePermissions: { select: { module: true } },
+      },
     }),
     prisma.user.count({ where }),
   ]);
-  return { items, total, page, pageSize };
+  return { items: items.map(shapeUser), total, page, pageSize };
 });
 
 export const POST = handler(async (req) => {
@@ -80,8 +105,9 @@ export const POST = handler(async (req) => {
       passwordHash,
       roleId: role.id,
       active: data.active ?? true,
+      ...moduleCreate(data.modules),
     },
-    include: { role: true },
+    include: { role: true, modulePermissions: true },
   });
   await prisma.auditLog.create({
     data: {
@@ -93,7 +119,7 @@ export const POST = handler(async (req) => {
       description: `Usuário "${created.username}" criado.`,
     },
   });
-  return created;
+  return shapeUser(created);
 });
 
 export const PUT = handler(async (req) => {
@@ -119,8 +145,19 @@ export const PUT = handler(async (req) => {
     if (!role) throw new HttpError(400, 'INVALIDO', 'Perfil inválido.');
     updateData.roleId = role.id;
   }
+  if (data.modules !== undefined) {
+    const unique = Array.from(new Set(data.modules));
+    updateData.modulePermissions = {
+      deleteMany: {},
+      ...(unique.length ? { create: unique.map((module) => ({ module })) } : {}),
+    };
+  }
 
-  const after = await prisma.user.update({ where: { id }, data: updateData, include: { role: true } });
+  const after = await prisma.user.update({
+    where: { id },
+    data: updateData,
+    include: { role: true, modulePermissions: true },
+  });
   await prisma.auditLog.create({
     data: {
       userId: session.id,
@@ -131,5 +168,5 @@ export const PUT = handler(async (req) => {
       description: `Usuário "${before.username}" atualizado.`,
     },
   });
-  return after;
+  return shapeUser(after);
 });

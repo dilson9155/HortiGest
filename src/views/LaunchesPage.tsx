@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   ListChecks,
@@ -154,12 +155,16 @@ function deltaLabel(v: number) {
   return `${v > 0 ? '+' : ''}${brNum(v, 0)}`;
 }
 
-export default function LaunchesPage() {
+export type LaunchMode = 'buyers' | 'reviewers';
+
+export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
   const { can } = useAuth();
   const { toast } = useToast();
-  const canCreate = can('launches', 'create');
-  const canEdit = can('launches', 'edit');
-  const canDelete = can('launches', 'delete');
+  const router = useRouter();
+  const launchModule = mode === 'buyers' ? 'launches_buyers' : 'launches_reviewers';
+  const canCreate = can(launchModule, 'create');
+  const canEdit = can(launchModule, 'edit');
+  const canDelete = can(launchModule, 'delete');
 
   const [date, setDate] = useState(todayISO());
   const [dockId, setDockId] = useState('');
@@ -532,6 +537,15 @@ export default function LaunchesPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // Na tela do conferente, o botão editar abre a tela do comprador já no lançamento.
+  function openLaunchEditor(launch: any) {
+    if (mode === 'reviewers') {
+      router.push(`/lancamentos-compradores?edit=${encodeURIComponent(launch.id)}`);
+      return;
+    }
+    loadLaunchIntoForm(launch);
+  }
+
   async function deleteLaunch(id: string) {
     if (!canDelete) return toast('error', 'Sem permissão para excluir.');
     setConfirmDelId(null);
@@ -717,6 +731,7 @@ export default function LaunchesPage() {
       />
 
       {/* ===================== MÓDULO 1 — LANÇAMENTOS ===================== */}
+      {mode === 'buyers' && (
       <section className={clsx('rounded-2xl bg-white shadow-soft border p-4 sm:p-5', editingLaunchId ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200')}>
         <header className="mb-4 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -939,8 +954,10 @@ export default function LaunchesPage() {
           <span className="text-xs text-slate-500">Você pode salvar item por item. Use <b>Tab</b> para percorrer as colunas. Cada previsão salva fica disponível no módulo <b>Lançamento conferentes</b>.</span>
         </div>
       </section>
+      )}
 
       {/* ===================== MÓDULO 2 — ENTRADAS / PREVISÕES ===================== */}
+      {mode === 'reviewers' && (
       <section className="rounded-2xl bg-white shadow-soft border border-slate-200 p-5 sm:p-7">
         <header className="mb-5 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -1104,7 +1121,7 @@ export default function LaunchesPage() {
                               </button>
                             )}
                             {canEdit && (
-                              <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
+                              <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
                                 <Pencil size={17} />
                               </button>
                             )}
@@ -1151,7 +1168,7 @@ export default function LaunchesPage() {
                           </div>
                           <div className="flex gap-1 shrink-0">
                             {canEdit && !receivedItem && <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>}
-                            {canEdit && <button onClick={() => loadLaunchIntoForm(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
+                            {canEdit && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
                             {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>}
                           </div>
                         </div>
@@ -1206,6 +1223,7 @@ export default function LaunchesPage() {
           {loadingLists && <Spinner />}
         </div>
       </section>
+      )}
     </div>
   );
 }

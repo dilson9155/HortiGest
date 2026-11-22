@@ -349,7 +349,7 @@ export default function ReceivedPage() {
                       </td>
                       <td className="py-3 px-3 text-right">
                         {can('launches', 'edit') && (
-                          <Link href={`/lancamentos?edit=${it.launchId}`} className="inline-flex p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar lançamento">
+                          <Link href={`/lancamentos-compradores?edit=${it.launchId}`} className="inline-flex p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar lançamento">
                             <Pencil size={17} />
                           </Link>
                         )}
@@ -394,7 +394,7 @@ export default function ReceivedPage() {
                       </div>
                     </div>
                     {can('launches', 'edit') && (
-                      <Link href={`/lancamentos?edit=${it.launchId}`} className="p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar">
+                      <Link href={`/lancamentos-compradores?edit=${it.launchId}`} className="p-2 rounded-md text-brand-700 hover:bg-brand-50" title="Editar">
                         <Pencil size={17} />
                       </Link>
                     )}

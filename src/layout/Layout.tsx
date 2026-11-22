@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   LayoutDashboard,
   ClipboardList,
+  ListChecks,
   Boxes,
   Truck,
   FileText,
@@ -22,6 +23,8 @@ import {
   UserCheck,
   ShoppingCart,
   CheckCircle2,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrandingSafe } from '../contexts/BrandingContext';
@@ -36,6 +39,8 @@ type Item = {
   action?: 'view' | 'create' | 'edit' | 'delete' | 'export';
 };
 
+const COLLAPSE_KEY = 'hf_sidebar_collapsed';
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout, canAny } = useAuth();
   const branding = useBrandingSafe();
@@ -46,16 +51,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const nav = (path: string) => _router.push(path);
   const location = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const firstRender = useRef(true);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
+  }, []);
 
   useEffect(() => {
     setOpen(false);
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    // Ao escolher qualquer módulo, o menu volta a ficar recolhido.
+    setCollapsed(true);
+    window.localStorage.setItem(COLLAPSE_KEY, '1');
   }, [location]);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }
 
   if (!user) return <>{children}</>;
 
   const items: Item[] = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', action: 'view' },
-    { to: '/lancamentos', label: 'Lançamentos', icon: ClipboardList, module: 'launches', action: 'view' },
+    { to: '/lancamentos-compradores', label: 'Lançamento compradores', icon: ClipboardList, module: 'launches_buyers', action: 'view' },
+    { to: '/lancamentos-conferentes', label: 'Lançamento conferentes', icon: ListChecks, module: 'launches_reviewers', action: 'view' },
     { to: '/recebidos', label: 'Histórico de entradas', icon: CheckCircle2, module: 'launches', action: 'view' },
     { to: '/produtos', label: 'Produtos', icon: Boxes, module: 'products', action: 'view' },
     { to: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'suppliers', action: 'view' },
@@ -106,14 +133,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex w-64 flex-col bg-white border-r border-slate-200 shadow-sm">
+      <aside
+        className={clsx(
+          'hidden lg:flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-300 ease-in-out',
+          collapsed ? 'w-20' : 'w-64',
+        )}
+      >
         <SidebarContent
           items={filtered}
+          pathname={location}
           onLogout={handleLogout}
           onPwd={openChangePassword}
           user={user}
           logoSrc={logoSrc}
           companyAlt={companyAlt}
+          collapsed={collapsed}
+          onToggle={toggleCollapsed}
         />
       </aside>
 
@@ -124,12 +159,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl flex flex-col safe-top safe-bottom">
             <SidebarContent
               items={filtered}
+              pathname={location}
               onLogout={handleLogout}
               onPwd={openChangePassword}
               onClose={() => setOpen(false)}
               user={user}
               logoSrc={logoSrc}
               companyAlt={companyAlt}
+              collapsed={false}
             />
           </aside>
         </div>
@@ -192,55 +229,98 @@ function SidebarContent({
   onLogout,
   onPwd,
   onClose,
+  onToggle,
+  pathname,
   logoSrc,
   companyAlt,
+  collapsed = false,
 }: {
   items: Item[];
   user: { name: string; username: string; role?: { name: string } | null };
   onLogout: () => void;
   onPwd: () => void;
   onClose?: () => void;
+  onToggle?: () => void;
+  pathname: string | null;
   logoSrc: string;
   companyAlt: string;
+  collapsed?: boolean;
 }) {
+  const initials = user.name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+
   return (
     <>
-      {/* Logo */}
-      <div className="px-5 py-5 flex items-center justify-between border-b border-slate-100">
-        <img src={logoSrc} alt={companyAlt} className="h-14 w-auto max-w-full" style={{ objectFit: 'contain' }} />
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 hover:bg-slate-100 p-2 rounded-md transition"
-            aria-label="Fechar menu"
-          >
-            <X size={18} />
-          </button>
+      {/* Logo + controle de recolhimento */}
+      <div
+        className={clsx(
+          'flex items-center border-b border-slate-100',
+          collapsed ? 'flex-col gap-3 px-2 py-4' : 'justify-between px-5 py-5',
         )}
+      >
+        <img
+          src={logoSrc}
+          alt={companyAlt}
+          className={collapsed ? 'h-11 w-11 object-contain' : 'h-14 w-auto max-w-full'}
+          style={{ objectFit: 'contain' }}
+        />
+        <div className={clsx('flex items-center gap-1', collapsed && 'flex-col')}>
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className="p-2 rounded-lg text-slate-500 hover:text-brand-700 hover:bg-brand-50 transition"
+              title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+              aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            >
+              {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-slate-500 hover:text-slate-700 hover:bg-slate-100 p-2 rounded-md transition"
+              aria-label="Fechar menu"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navegação */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3">
+      <nav className={clsx('flex-1 py-4', collapsed ? 'px-2 overflow-visible' : 'px-3 overflow-y-auto')}>
         <ul className="space-y-1">
           {items.map((item) => {
-            const loc = location ? String(location) : '';
+            const loc = pathname ? String(pathname) : '';
             const isActive = item.to === '/'
               ? loc === item.to
               : loc === item.to || loc.startsWith(item.to + '/');
             return (
-              <li key={item.to}>
+              <li key={item.to} className="group/item relative">
                 <Link
                   href={item.to}
                   className={clsx(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+                    'flex items-center rounded-lg text-sm font-medium transition',
+                    collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-2.5',
                     isActive
                       ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md shadow-brand-500/30'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
                   )}
+                  title={collapsed ? item.label : undefined}
                 >
-                  <item.icon size={18} />
-                  <span>{item.label}</span>
+                  <item.icon size={18} className="shrink-0" />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
                 </Link>
+                {collapsed && (
+                  <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/item:opacity-100">
+                    {item.label}
+                    <span className="absolute -left-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 bg-slate-900" />
+                  </span>
+                )}
               </li>
             );
           })}
@@ -248,29 +328,45 @@ function SidebarContent({
       </nav>
 
       {/* Perfil + ações */}
-      <div className="border-t border-slate-100 p-4 space-y-3">
-        <div className="rounded-xl bg-gradient-to-br from-slate-50 to-brand-50 p-3 border border-brand-100">
-          <div className="font-bold text-slate-800 text-sm truncate">{user.name}</div>
-          <div className="text-xs text-slate-500 truncate">@{user.username}</div>
-          {user.role && (
-            <div className="mt-1.5 inline-flex items-center gap-1 bg-brand-100 text-brand-800 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-              <Leaf size={10} />
-              {user.role.name}
+      <div className={clsx('border-t border-slate-100', collapsed ? 'p-3' : 'p-4 space-y-3')}>
+        {collapsed ? (
+          <div className="group/profile relative flex justify-center" title={user.name}>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
+              {initials || <Leaf size={16} />}
             </div>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover/profile:opacity-100">
+              {user.name}
+            </span>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-gradient-to-br from-slate-50 to-brand-50 p-3 border border-brand-100">
+            <div className="font-bold text-slate-800 text-sm truncate">{user.name}</div>
+            <div className="text-xs text-slate-500 truncate">@{user.username}</div>
+            {user.role && (
+              <div className="mt-1.5 inline-flex items-center gap-1 bg-brand-100 text-brand-800 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                <Leaf size={10} />
+                {user.role.name}
+              </div>
+            )}
+          </div>
+        )}
+        <div className={clsx('grid gap-2', collapsed ? 'grid-cols-1' : 'grid-cols-2')}>
           <button
             onClick={onPwd}
-            className="h-10 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition flex items-center justify-center gap-1.5"
+            className={clsx(
+              'h-10 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition flex items-center justify-center gap-1.5',
+              collapsed && 'px-0',
+            )}
+            title="Alterar senha"
           >
-            <KeyRound size={14} /> Senha
+            <KeyRound size={14} /> {!collapsed && 'Senha'}
           </button>
           <button
             onClick={onLogout}
             className="h-10 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition flex items-center justify-center gap-1.5"
+            title="Sair"
           >
-            <LogOut size={14} /> Sair
+            <LogOut size={14} /> {!collapsed && 'Sair'}
           </button>
         </div>
       </div>

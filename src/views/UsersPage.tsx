@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Search, RefreshCw, Edit3, KeyRound, Users, ShieldCheck, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
+import { USER_MODULE_OPTIONS } from '../lib/permissions';
 import { useToast } from '../hooks/useToast';
 import { SectionCard, Button, Input, Modal, ConfirmDialog, Spinner, Badge } from '../components/UI';
 import Toggle from '../components/Toggle';
@@ -17,6 +18,7 @@ type User = {
   email?: string | null;
   active: boolean;
   role: { id: string; kind: string; name: string } | null;
+  allowedModules?: string[];
 };
 
 export default function UsersPage() {
@@ -37,6 +39,8 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [roleKind, setRoleKind] = useState<'ADMIN' | 'SUPERVISOR' | 'OPERADOR'>('OPERADOR');
+  const [allModules, setAllModules] = useState(true);
+  const [allowedModules, setAllowedModules] = useState<string[]>([]);
 
   const [pwdModal, setPwdModal] = useState<User | null>(null);
   const [newPwd, setNewPwd] = useState('');
@@ -64,6 +68,8 @@ export default function UsersPage() {
     setEmail('');
     setPassword('');
     setRoleKind('OPERADOR');
+    setAllModules(true);
+    setAllowedModules([]);
     setModalOpen(true);
   }
 
@@ -74,6 +80,9 @@ export default function UsersPage() {
     setEmail(u.email ?? '');
     setPassword('');
     setRoleKind((u.role?.kind as any) ?? 'OPERADOR');
+    const modules = u.allowedModules ?? [];
+    setAllModules(modules.length === 0);
+    setAllowedModules(modules);
     setModalOpen(true);
   }
 
@@ -82,14 +91,18 @@ export default function UsersPage() {
     if (!name.trim()) return toast('warning', 'Informe o nome.');
     if (!editing && password.length < 8) return toast('warning', 'Senha mínima de 8 caracteres.');
     if (editing && password && password.length < 8) return toast('warning', 'Senha mínima de 8 caracteres.');
+    if (!allModules && allowedModules.length === 0) {
+      return toast('warning', 'Selecione ao menos um módulo ou marque "Todos os módulos".');
+    }
 
+    const modules = allModules ? [] : allowedModules;
     let r;
     if (editing) {
-      const body: any = { name, email: email || null, roleKind };
+      const body: any = { name, email: email || null, roleKind, modules };
       if (password) body.password = password;
       r = await api.put(`/users/${editing.id}`, body);
     } else {
-      r = await api.post('/users', { username, name, email, password, roleKind });
+      r = await api.post('/users', { username, name, email, password, roleKind, modules });
     }
 
     if (r.ok) {
@@ -268,6 +281,46 @@ export default function UsersPage() {
               <option value="OPERADOR">Operador</option>
             </select>
           </div>
+
+          <div>
+            <label className="label">Módulos que pode acessar</label>
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allModules}
+                onChange={(e) => setAllModules(e.target.checked)}
+                className="h-4 w-4 accent-brand-600"
+              />
+              Todos os módulos permitidos pelo perfil
+            </label>
+            {allModules ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Para limitar o acesso, desmarque esta opção e escolha os módulos abaixo.
+              </p>
+            ) : (
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3">
+                {USER_MODULE_OPTIONS.map(({ module, label }) => (
+                  <label
+                    key={module}
+                    className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-brand-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allowedModules.includes(module)}
+                      onChange={(e) =>
+                        setAllowedModules((prev) =>
+                          e.target.checked ? [...prev, module] : prev.filter((m) => m !== module),
+                        )
+                      }
+                      className="h-4 w-4 accent-brand-600"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               Cancelar

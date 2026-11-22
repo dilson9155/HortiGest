@@ -3,6 +3,7 @@ import { prisma } from '../../../../lib/prisma';
 import { hashPassword } from '../../../../lib/auth';
 import { handler } from '../../../../lib/api-handler';
 import { getSession, requirePerm, routeId, HttpError } from '../../../../lib/session';
+import { isModule } from '../../../../lib/permissions';
 
 export const runtime = 'nodejs';
 
@@ -12,6 +13,7 @@ const updateSchema = z.object({
   password: z.string().min(8, 'Senha mínima de 8 caracteres.').optional(),
   roleKind: z.enum(['ADMIN', 'SUPERVISOR', 'OPERADOR']).optional(),
   active: z.boolean().optional(),
+  modules: z.array(z.string().refine(isModule, 'Módulo inválido.')).optional(),
 });
 
 export const PUT = handler(async (req, ctx) => {
@@ -35,8 +37,19 @@ export const PUT = handler(async (req, ctx) => {
     if (!role) throw new HttpError(400, 'INVALIDO', 'Perfil inválido.');
     updateData.roleId = role.id;
   }
+  if (data.modules !== undefined) {
+    const unique = Array.from(new Set(data.modules));
+    updateData.modulePermissions = {
+      deleteMany: {},
+      ...(unique.length ? { create: unique.map((module) => ({ module })) } : {}),
+    };
+  }
 
-  const after = await prisma.user.update({ where: { id }, data: updateData, include: { role: true } });
+  const after = await prisma.user.update({
+    where: { id },
+    data: updateData,
+    include: { role: true, modulePermissions: true },
+  });
   await prisma.auditLog.create({
     data: {
       userId: session.id,
@@ -47,5 +60,10 @@ export const PUT = handler(async (req, ctx) => {
       description: `Usuário "${before.username}" atualizado.`,
     },
   });
-  return after;
+
+  const { modulePermissions, ...user } = after;
+  return {
+    ...user,
+    allowedModules: modulePermissions.map((p) => p.module),
+  };
 });

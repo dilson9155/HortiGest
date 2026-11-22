@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { verifyPassword, signToken } from '../../../../lib/auth';
 import { handler } from '../../../../lib/api-handler';
+import { apiErr } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
 
@@ -18,17 +20,25 @@ export const POST = handler(async (req) => {
     include: { role: { include: { permissions: true } } },
   });
   if (!user || !user.active) {
-    const e = { ok: false, error: { code: 'CREDENTIALS_INVALID', message: 'Usuário ou senha inválidos.' } };
-    return new Response(JSON.stringify(e), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    const e = apiErr(401, 'CREDENTIALS_INVALID', 'Usuário ou senha inválidos.');
+    return NextResponse.json(e.body, { status: e.status });
   }
 
   const okPw = await verifyPassword(user.passwordHash, password);
   if (!okPw) {
-    const e = { ok: false, error: { code: 'CREDENTIALS_INVALID', message: 'Usuário ou senha inválidos.' } };
-    return new Response(JSON.stringify(e), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    const e = apiErr(401, 'CREDENTIALS_INVALID', 'Usuário ou senha inválidos.');
+    return NextResponse.json(e.body, { status: e.status });
   }
 
   const token = signToken({ sub: user.id, username: user.username });
+
+  const modulePermissions = await prisma.userModulePermission.findMany({
+    where: { userId: user.id },
+    select: { module: true },
+  });
+  const allowedModules = modulePermissions.length
+    ? modulePermissions.map((p) => p.module)
+    : null;
 
   // Atualiza lastLogin
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -58,6 +68,7 @@ export const POST = handler(async (req) => {
       permissions: Object.fromEntries(
         (user.role?.permissions ?? []).map((p) => [p.module, p.actions]),
       ),
+      allowedModules,
     },
   };
 });
