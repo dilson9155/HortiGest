@@ -227,7 +227,7 @@ export default function ReportsPage() {
                       <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
                       <td className="py-3 px-3 text-right font-bold text-emerald-700">{brNum(Number(it.received), 0)}</td>
                       <td className="py-3 px-3 text-right font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</td>
-                      <td className={clsx('py-3 px-3 text-right font-bold', it.delta > 0 ? 'text-red-700' : it.delta < 0 ? 'text-emerald-700' : 'text-slate-500')}>
+                      <td className={clsx('py-3 px-3 text-right font-bold', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>
                         {deltaText(it.delta)}
                       </td>
                       <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName}</td>
@@ -268,7 +268,7 @@ export default function ReportsPage() {
                     <div><div className="text-xs text-slate-500 uppercase">Previsão</div><div className="font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</div></div>
                     <div><div className="text-xs text-slate-500 uppercase">Recebido</div><div className="font-bold text-emerald-700">{brNum(Number(it.received), 0)}</div></div>
                     <div><div className="text-xs text-slate-500 uppercase">Rendimento</div><div className="font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</div></div>
-                    <div><div className="text-xs text-slate-500 uppercase">Delta</div><div className={clsx('font-bold', it.delta > 0 ? 'text-red-700' : it.delta < 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaText(it.delta)}</div></div>
+                    <div><div className="text-xs text-slate-500 uppercase">Delta</div><div className={clsx('font-bold', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaText(it.delta)}</div></div>
                   </div>
                   <div className="text-xs text-slate-600 mt-2 break-words"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName} · <b>Comprador:</b> {it.compradorName}</div>
                   {it.notes && <div className="text-xs text-slate-600 mt-1 break-words"><b>Observações:</b> {it.notes}</div>}

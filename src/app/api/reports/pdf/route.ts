@@ -72,7 +72,8 @@ export async function GET(req: Request) {
   const timeTo = url.searchParams.get('timeTo');
 
   // ---------- 1) Buscar dados ----------
-  const where: any = { status: 'RECEBIDO' };
+  // Só entram no estoque real os lançamentos concluídos pelo conferente.
+  const where: any = { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
   if (startDate || endDate) {
     where.launch = where.launch ?? {};
     where.launch.referenceDate = {};
@@ -136,7 +137,7 @@ export async function GET(req: Request) {
       forecast: Number(it.forecast),
       received: Number(it.received),
       rendimento: Number(it.rendimento),
-      delta: Number(it.forecast) - Number(it.received),
+      delta: Number(it.received) - Number(it.forecast),
       dock: it.dockName || (it.launch as any)?.dockName || '—',
       compradorName: it.compradorName || (it.launch as any)?.compradorName || '—',
       conferenteName: it.conferenteName || (it.launch as any)?.conferenteName || '—',
@@ -144,9 +145,9 @@ export async function GET(req: Request) {
       kg: Number(it.boxKg),
     }))
     .filter((it) => {
-      // delta = previsão - recebido: veio a mais => negativo; veio a menos => positivo.
-      if (deltaFilter === 'MAIS') return it.delta < 0;
-      if (deltaFilter === 'MENOS') return it.delta > 0;
+      // delta = recebido - previsão: veio a mais => positivo; veio a menos => negativo.
+      if (deltaFilter === 'MAIS') return it.delta > 0;
+      if (deltaFilter === 'MENOS') return it.delta < 0;
       if (deltaFilter === 'OK') return it.delta === 0;
       return true;
     });
@@ -290,8 +291,8 @@ export async function GET(req: Request) {
             return;
           }
           if (i === 7) {
-            // delta positivo = faltou receber (atenção); negativo = veio a mais.
-            doc.fillColor(deltaValue > 0 ? '#b91c1c' : deltaValue < 0 ? '#047857' : '#475569');
+            // Delta negativo = faltou (vermelho); positivo = veio a mais (verde).
+            doc.fillColor(deltaValue < 0 ? '#b91c1c' : deltaValue > 0 ? '#047857' : '#475569');
             doc.font('Helvetica-Bold');
           } else {
             doc.fillColor('#0f172a');

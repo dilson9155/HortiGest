@@ -86,9 +86,9 @@ function newRow(defaults: RowDefaults = {}): Row {
   };
 }
 
-// Delta = previsão - recebido (positivo = faltou receber; negativo = veio a mais).
+// Delta = recebido - previsão (negativo = faltou/vermelho; positivo = veio a mais/verde).
 function deltaOf(forecast: unknown, received: unknown) {
-  return Number(forecast ?? 0) - Number(received ?? 0);
+  return Number(received ?? 0) - Number(forecast ?? 0);
 }
 
 function deltaLabel(v: number) {
@@ -624,7 +624,7 @@ export default function LaunchesPage() {
             <b>Dois horários por item:</b> o comprador informa o <b>horário previsto de entrega</b> e a <b>docа</b>;
             o conferente informa o <b>horário do lançamento</b>, a quantidade recebida e o <b>rendimento</b>.
             A <b>situação muda para Recebido automaticamente</b> quando o conferente informa o horário ou a quantidade recebida.
-            O delta (previsto − recebido) também é automático.
+            O delta (recebido − previsto) é automático: falta aparece em vermelho e sobra em verde.
           </div>
         </div>
 
@@ -715,7 +715,7 @@ export default function LaunchesPage() {
                     <td className="border border-emerald-100 p-1.5 align-middle">
                       <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300" />
                     </td>
-                    <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
+                    <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
                       {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
                     </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
@@ -762,7 +762,8 @@ export default function LaunchesPage() {
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Entradas / previsões pendentes</h2>
               <p className="text-sm text-slate-600">
-                Todas as entradas aparecem aqui. Ao confirmar o recebimento, o item sai desta lista e vai para o módulo <b>Produtos recebidos</b>.
+                Todas as entradas aparecem aqui. Enquanto o conferente não concluir o lançamento, todos os itens ficam agrupados nesta lista.
+                Quando todos os itens forem recebidos, o lançamento vai para o módulo <b>Produtos recebidos</b>.
               </p>
             </div>
           </div>

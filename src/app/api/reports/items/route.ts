@@ -29,7 +29,8 @@ export const GET = handler(async (req) => {
   const timeFrom = url.searchParams.get('timeFrom');
   const timeTo = url.searchParams.get('timeTo');
 
-  const where: any = { status: 'RECEBIDO' };
+  // Só entram no estoque real os lançamentos concluídos pelo conferente.
+  const where: any = { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
   if (startDate || endDate) {
     where.launch = where.launch ?? {};
     where.launch.referenceDate = {};
@@ -94,7 +95,7 @@ export const GET = handler(async (req) => {
       forecast: String(it.forecast),
       received: String(it.received),
       rendimento: String(it.rendimento),
-      delta: Number(it.forecast) - Number(it.received),
+      delta: Number(it.received) - Number(it.forecast),
       // Dois horários por item: previsão do comprador e lançamento do conferente.
       forecastTime: it.forecastTime,
       entryTime: it.entryTime,
@@ -108,9 +109,9 @@ export const GET = handler(async (req) => {
       },
     }))
     .filter((it) => {
-      // delta = previsão - recebido: veio a mais => negativo; veio a menos => positivo.
-      if (deltaFilter === 'MAIS') return it.delta < 0;
-      if (deltaFilter === 'MENOS') return it.delta > 0;
+      // delta = recebido - previsão: veio a mais => positivo; veio a menos => negativo.
+      if (deltaFilter === 'MAIS') return it.delta > 0;
+      if (deltaFilter === 'MENOS') return it.delta < 0;
       if (deltaFilter === 'OK') return it.delta === 0;
       return true;
     });

@@ -31,17 +31,17 @@ export const GET = handler(async (req) => {
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
   const pageSize = Math.min(500, Math.max(5, Number(url.searchParams.get('pageSize') ?? 10)));
 
-  // view=pending -> itens aguardando recebimento; view=received -> produtos recebidos.
+  // view=pending -> lançamentos ainda não concluídos; todos os itens ficam juntos
+  // enquanto o conferente não termina a parte dele.
+  // view=received -> lançamentos concluídos (estoque real).
   const view = url.searchParams.get('view');
   const legacyStatus = url.searchParams.get('status');
   const itemStatus =
-    view === 'pending' || legacyStatus === 'PREVISTO'
-      ? 'PREVISTO'
-      : view === 'received' || legacyStatus === 'CONFIRMADO'
-        ? 'RECEBIDO'
-        : undefined;
+    legacyStatus === 'PREVISTO' ? 'PREVISTO' : legacyStatus === 'CONFIRMADO' ? 'RECEBIDO' : undefined;
 
   const where: any = {};
+  if (view === 'pending') where.status = 'PREVISTO';
+  if (view === 'received') where.status = 'CONFIRMADO';
   if (startDate || endDate) {
     where.referenceDate = {};
     if (startDate) where.referenceDate.gte = new Date(`${startDate}T00:00:00.000Z`);

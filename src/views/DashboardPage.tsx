@@ -74,7 +74,7 @@ export default function DashboardPage() {
       {
         label: 'Delta (cx)',
         value: `${c.totalDeltaBoxes > 0 ? '+' : ''}${brNum(c.totalDeltaBoxes, 0)}`,
-        tone: c.totalDeltaBoxes > 0 ? 'bad' : 'good',
+        tone: c.totalDeltaBoxes < 0 ? 'bad' : c.totalDeltaBoxes > 0 ? 'good' : 'info',
         icon: <TrendingUp size={21} />,
         sub: `${brNum(c.deltaPercent, 1)}% sobre a previsão`,
       },
@@ -213,14 +213,14 @@ export default function DashboardPage() {
                   {(data?.recent ?? []).map((l) => {
                     const sum = (k: 'forecast' | 'received') =>
                       (l.items ?? []).reduce((acc: number, it: any) => acc + Number(it[k] ?? 0), 0);
-                    const delta = sum('forecast') - sum('received');
+                    const delta = sum('received') - sum('forecast');
                     return (
                       <tr key={l.id} className="border-b hover:bg-slate-50">
                         <td className="py-2">{brDateTime(l.referenceDate).slice(0, 10)}</td>
                         <td>{l.items?.length ?? 0}</td>
                         <td>{brNum(sum('forecast'), 0)}</td>
                         <td className="font-bold text-emerald-700">{brNum(sum('received'), 0)}</td>
-                        <td className={delta > 0 ? 'text-red-700 font-bold' : delta < 0 ? 'text-emerald-700 font-bold' : ''}>
+                        <td className={delta < 0 ? 'text-red-700 font-bold' : delta > 0 ? 'text-emerald-700 font-bold' : ''}>
                           {delta > 0 ? '+' : ''}{brNum(delta, 0)}
                         </td>
                         <td>{l.dock?.name ?? '—'}</td>
