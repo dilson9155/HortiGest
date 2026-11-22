@@ -289,18 +289,6 @@ export default function LaunchesPage() {
         toast('error', 'Não é permitido valor negativo.');
         return;
       }
-      if (!r.compradorId) {
-        toast('warning', `Item ${idx + 1}: selecione um comprador cadastrado.`);
-        return;
-      }
-      if (!r.forecastTime) {
-        toast('warning', `Item ${idx + 1}: informe o horário previsto de entrega.`);
-        return;
-      }
-      if (!r.dockId) {
-        toast('warning', `Item ${idx + 1}: informe a doca prevista.`);
-        return;
-      }
       if (r.status === 'RECEBIDO') {
         if (!r.conferenteId) {
           toast('warning', `Item ${idx + 1}: selecione um conferente cadastrado.`);
@@ -328,8 +316,8 @@ export default function LaunchesPage() {
       dockId: first?.dockId || null,
       compradorId: first?.compradorId || null,
       conferenteId: first?.conferenteId || null,
-      compradorName: first?.compradorName.trim() || null,
-      conferenteName: first?.conferenteName.trim() || null,
+      compradorName: first?.compradorName?.trim() || null,
+      conferenteName: first?.conferenteName?.trim() || null,
       items: valid.map((r) => ({
         productId: r.productId,
         supplierId: r.supplierId,
@@ -337,11 +325,11 @@ export default function LaunchesPage() {
         received: Number(r.received) || 0,
         rendimento: Number(r.rendimento) || 0,
         compradorId: r.compradorId || null,
-        compradorName: r.compradorName.trim(),
+        compradorName: r.compradorName.trim() || null,
         conferenteId: r.conferenteId || null,
         conferenteName: r.conferenteName.trim() || null,
-        dockId: r.dockId,
-        forecastTime: r.forecastTime,
+        dockId: r.dockId || null,
+        forecastTime: r.forecastTime || null,
         entryTime: r.status === 'RECEBIDO' ? r.entryTime : null,
         notes: r.notes || null,
         status: r.status,
@@ -748,7 +736,7 @@ export default function LaunchesPage() {
           <button onClick={addRow} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
             <Plus size={17} /> Adicionar linha
           </button>
-          <span className="text-xs text-slate-500">Use <b>Tab</b> para percorrer as colunas. A situação é automática: ao informar o horário ou o recebido, o item vira <b>Recebido</b>.</span>
+          <span className="text-xs text-slate-500">Você pode salvar item por item: preencha o que tiver agora e complete depois ao editar. Use <b>Tab</b> para percorrer as colunas. A situação é automática: ao informar o horário ou o recebido, o item vira <b>Recebido</b>.</span>
         </div>
       </section>
 

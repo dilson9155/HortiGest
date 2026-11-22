@@ -24,14 +24,19 @@ export const launchSchema = z.object({
         forecast: z.number().nonnegative().default(0),
         received: z.number().nonnegative().default(0),
         rendimento: z.number().nonnegative().default(0),
-        // Detalhes por item — cada produto pode ter um comprador/conferente diferente.
+        // Detalhes por item — podem ser preenchidos depois, na edição.
+        // O mínimo para salvar é produto + fornecedor.
         compradorId: z.string().min(1).optional().nullable(),
-        compradorName: z.string().trim().min(1, 'Informe o comprador de cada item.').max(120),
+        compradorName: z.string().trim().max(120).optional().nullable(),
         conferenteId: z.string().min(1).optional().nullable(),
         conferenteName: z.string().trim().max(120).optional().nullable(),
-        dockId: z.string().min(1, 'Informe a doca de cada item.'),
+        dockId: z.string().min(1).optional().nullable(),
         // Horário previsto pelo comprador e horário do lançamento do conferente.
-        forecastTime: z.string().regex(timeRegex, 'Horário previsto inválido (use HH:mm).'),
+        forecastTime: z
+          .string()
+          .refine((v) => !v || timeRegex.test(v), 'Horário previsto inválido (use HH:mm).')
+          .optional()
+          .nullable(),
         entryTime: z.string().regex(timeRegex, 'Horário inválido (use HH:mm).').optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
         status: z.enum(['PREVISTO', 'RECEBIDO']).optional(),
@@ -50,11 +55,11 @@ export type NormalizedItem = {
   received: number;
   rendimento: number;
   compradorId: string | null;
-  compradorName: string;
+  compradorName: string | null;
   conferenteId: string | null;
   conferenteName: string | null;
-  dockId: string;
-  forecastTime: string;
+  dockId: string | null;
+  forecastTime: string | null;
   entryTime: string | null;
   notes: string | null;
   itemStatus: ItemStatus;
@@ -100,13 +105,13 @@ export function normalizeLaunch(payload: LaunchPayload) {
       forecast: Number(it.forecast ?? 0),
       received: Number(it.received ?? 0),
       rendimento: Number(it.rendimento ?? 0),
-      compradorId: it.compradorId ?? null,
-      compradorName: it.compradorName.trim(),
-      conferenteId: it.conferenteId ?? null,
+      compradorId: it.compradorId || null,
+      compradorName: it.compradorName?.trim() || null,
+      conferenteId: it.conferenteId || null,
       conferenteName: it.conferenteName?.trim() || null,
-      dockId: it.dockId,
-      forecastTime: it.forecastTime,
-      entryTime: it.entryTime ?? null,
+      dockId: it.dockId || null,
+      forecastTime: it.forecastTime || null,
+      entryTime: it.entryTime || null,
       notes: it.notes ?? null,
       itemStatus,
     };
@@ -195,7 +200,7 @@ async function resolveItemRefs(tx: any, it: NormalizedItem) {
   return {
     compradorId: it.compradorId,
     // Nome digitado no lançamento prevalece sobre o cadastro (decisão anterior).
-    compradorName: it.compradorName.trim() || compradorCadastrado,
+    compradorName: it.compradorName?.trim() || compradorCadastrado || null,
     conferenteId: it.conferenteId,
     conferenteName: it.conferenteName?.trim() || conferenteCadastrado || null,
     dockId: it.dockId,
