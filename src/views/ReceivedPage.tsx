@@ -9,12 +9,14 @@ import {
   CheckCircle2,
   Clock3,
   FileDown,
+  FileSpreadsheet,
   Pencil,
   RefreshCw,
   Search,
   X,
 } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
+import { downloadReport, type ReportFormat } from '../lib/report-download';
 import { brNum, isoDate, todayISO } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
@@ -157,22 +159,14 @@ export default function ReceivedPage() {
     setFilters((f) => ({ ...f, startDate: s, endDate: end }));
   }
 
-  async function downloadPdf() {
+  async function download(format: ReportFormat) {
     setLoading(true);
-    const r = await api.download(`/reports/pdf?${query()}`);
+    const r = await downloadReport(query(), format, 'historico-entradas');
     setLoading(false);
-    if (r.ok && 'blob' in r) {
-      const url = URL.createObjectURL(r.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `historico-entradas-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast('success', 'PDF gerado.');
-    } else if (!r.ok) {
-      toast('error', errorMessage(r, 'Falha ao gerar PDF.'));
+    if (r.ok) {
+      toast('success', format === 'pdf' ? 'PDF gerado.' : `Arquivo ${format.toUpperCase()} gerado.`);
+    } else {
+      toast('error', r.message);
     }
   }
 
@@ -195,9 +189,17 @@ export default function ReceivedPage() {
               <RefreshCw size={15} /> Atualizar
             </Button>
             {can('reports', 'export') && (
-              <Button onClick={downloadPdf}>
-                <FileDown size={15} /> Gerar PDF
-              </Button>
+              <>
+                <Button variant="secondary" onClick={() => download('xlsx')} title="Excel moderno, estilizado e com filtros">
+                  <FileSpreadsheet size={15} /> Excel (.xlsx)
+                </Button>
+                <Button variant="secondary" onClick={() => download('csv')} title="CSV compatível com Excel">
+                  <FileSpreadsheet size={15} /> Excel (.csv)
+                </Button>
+                <Button onClick={() => download('pdf')}>
+                  <FileDown size={15} /> Gerar PDF
+                </Button>
+              </>
             )}
           </>
         }
@@ -302,44 +304,60 @@ export default function ReceivedPage() {
         ) : (
           <>
             <div className="hidden xl:block overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-base">
-                <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-brand-600">
+              <table className="w-full min-w-[1900px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[105px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[210px]" />
+                  <col className="w-[190px]" />
+                  <col className="w-[95px]" />
+                  <col className="w-[95px]" />
+                  <col className="w-[100px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[280px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[100px]" />
+                </colgroup>
+                <thead className="text-left text-xs font-semibold text-white bg-gradient-to-r from-emerald-700 to-brand-600">
                   <tr>
-                    <th className="py-3 px-3">Data</th>
-                    <th className="py-3 px-3">Horários prev./lanç.</th>
-                    <th className="py-3 px-3">Produto</th>
-                    <th className="py-3 px-3">Fornecedor</th>
-                    <th className="py-3 px-3 text-right">Previsão</th>
-                    <th className="py-3 px-3 text-right">Recebido</th>
-                    <th className="py-3 px-3 text-right">Rendimento</th>
-                    <th className="py-3 px-3 text-right">Delta</th>
-                    <th className="py-3 px-3">Docа</th>
-                    <th className="py-3 px-3">Conferente</th>
-                    <th className="py-3 px-3">Comprador</th>
-                    <th className="py-3 px-3">Observações</th>
-                    <th className="py-3 px-3">Situação</th>
-                    <th className="py-3 px-3 text-right">Ações</th>
+                    <th className="py-3 px-3 align-middle">Data</th>
+                    <th className="py-3 px-3 align-middle">Horários prev./lanç.</th>
+                    <th className="py-3 px-3 align-middle">Produto</th>
+                    <th className="py-3 px-3 align-middle">Fornecedor</th>
+                    <th className="py-3 px-3 text-right align-middle">Previsão</th>
+                    <th className="py-3 px-3 text-right align-middle">Recebido</th>
+                    <th className="py-3 px-3 text-right align-middle">Rendimento</th>
+                    <th className="py-3 px-3 text-right align-middle">Delta</th>
+                    <th className="py-3 px-3 align-middle">Docа</th>
+                    <th className="py-3 px-3 align-middle">Conferente</th>
+                    <th className="py-3 px-3 align-middle">Comprador</th>
+                    <th className="py-3 px-3 align-middle">Observações</th>
+                    <th className="py-3 px-3 align-middle">Situação</th>
+                    <th className="py-3 px-3 text-right align-middle">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((it, idx) => (
                     <tr key={it.id} className={clsx('border-b border-slate-100', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-emerald-50')}>
-                      <td className="py-3 px-3 font-semibold whitespace-nowrap">{dateBR(it.referenceDate)}</td>
-                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                      <td className="py-3 px-3 align-top font-semibold whitespace-normal break-words">{dateBR(it.referenceDate)}</td>
+                      <td className="py-3 px-3 align-top text-xs whitespace-normal break-words">
                         <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
                         <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700"><Clock3 size={12} className="inline" /> {it.entryTime ?? '—'}</b></div>
                       </td>
-                      <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[200px] leading-snug" title={it.productName}>{it.productName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[180px] leading-snug" title={it.supplierName}>{it.supplierName}</td>
-                      <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
-                      <td className="py-3 px-3 text-right font-bold text-emerald-700">{brNum(Number(it.received), 0)}</td>
-                      <td className="py-3 px-3 text-right font-bold text-purple-700" title="Informado à mão — base de pagamento ao fornecedor">{brNum(Number(it.rendimento), 0)}</td>
-                      <td className={clsx('py-3 px-3 text-right font-bold', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.conferenteName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.compradorName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 align-top font-medium whitespace-normal break-words leading-snug" title={it.productName}>{it.productName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words leading-snug" title={it.supplierName}>{it.supplierName}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-blue-700 whitespace-normal break-words">{brNum(Number(it.forecast), 0)}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-emerald-700 whitespace-normal break-words">{brNum(Number(it.received), 0)}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-purple-700 whitespace-normal break-words" title="Informado à mão — base de pagamento ao fornecedor">{brNum(Number(it.rendimento), 0)}</td>
+                      <td className={clsx('py-3 px-3 align-top text-right font-bold whitespace-normal break-words', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.dockName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.conferenteName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.compradorName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                      <td className="py-3 px-3 align-top text-center">
                         <span className={clsx(
                           'inline-flex rounded px-2 py-1 text-xs font-bold uppercase',
                           it.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
@@ -347,7 +365,7 @@ export default function ReceivedPage() {
                           {it.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-3 px-3 align-top text-right">
                         <Link
                           href={`/lancamentos-compradores?edit=${it.launchId}`}
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"

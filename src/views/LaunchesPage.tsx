@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -122,6 +122,23 @@ function newRow(defaults: RowDefaults = {}): Row {
   };
 }
 
+// Identifica alterações ainda não gravadas. Linhas novas (chave temporária)
+// são normalizadas para que uma linha vazia nunca dispare aviso de saída.
+function formSignature(
+  rows: Row[],
+  header: { date: string; notes: string; dockId: string; compradorId: string; conferenteId: string },
+) {
+  return JSON.stringify({
+    h: [header.date, header.notes, header.dockId, header.compradorId, header.conferenteId],
+    r: rows.map((r) => [
+      r._key.startsWith('r_') ? 'new' : r._key,
+      r.productId, r.supplierId, r.compradorId, r.compradorName,
+      r.conferenteId, r.conferenteName, r.dockId, r.forecastTime,
+      r.forecast, r.received, r.rendimento, r.entryTime, r.notes, r.status,
+    ]),
+  });
+}
+
 // Converte um item gravado de volta para linha da tabela.
 function rowFromItem(it: any): Row {
   return {
@@ -188,6 +205,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [editingLaunchId, setEditingLaunchId] = useState<string | null>(null);
+  // Último estado confirmado pelo servidor — usado para não bloquear a saída
+  // depois que o item foi salvo individualmente.
+  const savedSignatureRef = useRef<string | null>(null);
 
   // Ao abrir um lançamento pelo histórico, quem pode ver o histórico pode editá-lo.
   const canHistoryEdit = can('reports', 'view') || can('launches', 'view');
@@ -484,19 +504,19 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       }
 
       const saved = res.data as any;
-      if (!launchId && saved?.id) {
-        setEditingLaunchId(saved.id);
-        launchId = saved.id;
-      }
-      const savedItem = (saved?.items ?? []).find(
-        (it: any) => it.productId === row.productId && it.supplierId === row.supplierId,
-      );
-      if (savedItem?.id) {
-        setRows((arr) => arr.map((r, i) => (i === idx ? { ...r, _key: savedItem.id } : r)));
-      }
+      if (!launchId && saved?.id) setEditingLaunchId(saved.id);
 
-      toast('success', 'Item salvo. Os demais itens permanecem na tela para salvar depois.');
-      loadLists();
+      // Atualização imediata: o item salvo sai da tela e já aparece no grupo
+      // abaixo. As demais linhas continuam disponíveis para salvar depois.
+      const finalRows = rows.filter((_, i) => i !== idx);
+      const visibleRows = finalRows.length ? finalRows : [newRow()];
+      setRows(visibleRows);
+      savedSignatureRef.current = formSignature(visibleRows, {
+        date, notes, dockId, compradorId, conferenteId,
+      });
+
+      toast('success', 'Item salvo e atualizado. Você já pode sair da tela.');
+      await loadLists();
     } catch (err) {
       toast('error', errorMessage(err, 'Falha ao salvar item.'));
     } finally {
@@ -514,6 +534,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     setConferenteName('');
     setEditingLaunchId(null);
     setConfirmClear(false);
+    savedSignatureRef.current = formSignature([newRow()], {
+      date, notes: '', dockId: '', compradorId: '', conferenteId: '',
+    });
   }
 
   function clearForm() {
@@ -539,17 +562,23 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     setConferenteId(full.conferenteId ?? '');
     setCompradorName(full.compradorName ?? full.comprador?.name ?? '');
     setConferenteName(full.conferenteName ?? full.conferente?.name ?? '');
-    setRows(
-      (full.items ?? []).map((it: any) => ({
-        ...rowFromItem(it),
-        // Histórico sem responsável no item usa o snapshot do lançamento.
-        compradorId: it.compradorId ?? full.compradorId ?? '',
-        compradorName: it.compradorName ?? full.compradorName ?? full.comprador?.name ?? '',
-        conferenteId: it.conferenteId ?? full.conferenteId ?? '',
-        conferenteName: it.conferenteName ?? full.conferenteName ?? full.conferente?.name ?? '',
-        dockId: it.dockId ?? full.dockId ?? '',
-      })),
-    );
+    const loadedRows: Row[] = (full.items ?? []).map((it: any) => ({
+      ...rowFromItem(it),
+      // Histórico sem responsável no item usa o snapshot do lançamento.
+      compradorId: it.compradorId ?? full.compradorId ?? '',
+      compradorName: it.compradorName ?? full.compradorName ?? full.comprador?.name ?? '',
+      conferenteId: it.conferenteId ?? full.conferenteId ?? '',
+      conferenteName: it.conferenteName ?? full.conferenteName ?? full.conferente?.name ?? '',
+      dockId: it.dockId ?? full.dockId ?? '',
+    }));
+    setRows(loadedRows);
+    savedSignatureRef.current = formSignature(loadedRows, {
+      date: isoDate(full.referenceDate),
+      notes: full.notes ?? '',
+      dockId: full.dockId ?? '',
+      compradorId: full.compradorId ?? '',
+      conferenteId: full.conferenteId ?? '',
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -574,13 +603,23 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     }
   }
 
+  const currentSignature = formSignature(rows, { date, notes, dockId, compradorId, conferenteId });
+  useEffect(() => {
+    // Primeira renderização: nada foi digitado ainda.
+    if (savedSignatureRef.current === null) savedSignatureRef.current = currentSignature;
+  }, [currentSignature]);
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (rows.some((r) => r.productId || r.supplierId || r.forecast || r.received || r.rendimento || r.notes || r.compradorName || r.conferenteName || r.forecastTime || r.entryTime || r.dockId) || !!compradorName.trim() || !!conferenteName.trim() || !!dockId) e.preventDefault();
+      // Só avisa quando existir alteração realmente não salva. Depois de salvar
+      // um item pelo disco, a saída é livre e imediata.
+      if (currentSignature !== savedSignatureRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [rows, compradorName, conferenteName]);
+  }, [currentSignature]);
 
   const pendingFlat = useMemo(
     () =>
@@ -713,8 +752,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         delete next[it.id];
         return next;
       });
-      toast('success', 'Recebimento salvo. O item permanece agrupado até o lançamento ser concluído.');
-      loadLists();
+      toast('success', 'Recebimento salvo e atualizado. O item permanece agrupado até o lançamento ser concluído.');
+      await loadLists();
     } catch (err) {
       toast('error', errorMessage(err, 'Falha ao salvar recebimento.'));
     } finally {

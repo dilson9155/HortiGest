@@ -4,8 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { FileDown, RefreshCw, Search, FileText } from 'lucide-react';
+import { FileDown, FileSpreadsheet, RefreshCw, Search, FileText } from 'lucide-react';
 import { api } from '../lib/api';
+import { downloadReport, type ReportFormat } from '../lib/report-download';
 import { brNum, isoDate } from '../lib/utils';
 import { SectionCard, Input, Button, Spinner, Select } from '../components/UI';
 import { useToast } from '../hooks/useToast';
@@ -96,22 +97,14 @@ export default function ReportsPage() {
     }
   }
 
-  async function downloadPdf() {
+  async function download(format: ReportFormat) {
     setLoading(true);
-    const r = await api.download(`/reports/pdf?${query()}`);
+    const r = await downloadReport(query(), format, 'relatorio-recebimento');
     setLoading(false);
-    if (r.ok && 'blob' in r) {
-      const url = URL.createObjectURL(r.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio-recebimento-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast('success', 'PDF gerado.');
-    } else if (!r.ok) {
-      toast('error', r.error?.message || 'Falha ao gerar PDF.');
+    if (r.ok) {
+      toast('success', format === 'pdf' ? 'PDF gerado.' : `Arquivo ${format.toUpperCase()} gerado.`);
+    } else {
+      toast('error', r.message);
     }
   }
 
@@ -134,7 +127,7 @@ export default function ReportsPage() {
     <div className="space-y-4">
       <SectionCard
         title="Relatórios de recebimento"
-        description="Filtre os itens conferidos, veja previsão x recebido, delta, horário e observações, e gere o PDF."
+        description="Filtre os itens conferidos, veja previsão x recebido, delta, horário e observações, e exporte em PDF, Excel (.xlsx) ou Excel (.csv)."
         actions={
           <>
             <Button variant="secondary" onClick={clearFilters}>
@@ -143,7 +136,13 @@ export default function ReportsPage() {
             <Button variant="secondary" onClick={search}>
               <RefreshCw size={15} /> Filtrar
             </Button>
-            <Button onClick={downloadPdf}>
+            <Button variant="secondary" onClick={() => download('xlsx')} title="Excel moderno, estilizado e com filtros">
+              <FileSpreadsheet size={15} /> Excel (.xlsx)
+            </Button>
+            <Button variant="secondary" onClick={() => download('csv')} title="CSV compatível com Excel">
+              <FileSpreadsheet size={15} /> Excel (.csv)
+            </Button>
+            <Button onClick={() => download('pdf')}>
               <FileDown size={15} /> Gerar PDF
             </Button>
           </>
@@ -195,45 +194,59 @@ export default function ReportsPage() {
         ) : (
           <>
             <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-base">
-                <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
+              <table className="w-full min-w-[1700px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[105px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[210px]" />
+                  <col className="w-[190px]" />
+                  <col className="w-[95px]" />
+                  <col className="w-[95px]" />
+                  <col className="w-[100px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[285px]" />
+                </colgroup>
+                <thead className="text-left text-xs font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
                   <tr>
-                    <th className="py-3 px-3">Data</th>
-                    <th className="py-3 px-3">Horários prev./lanç.</th>
-                    <th className="py-3 px-3">Produto</th>
-                    <th className="py-3 px-3">Fornecedor</th>
-                    <th className="py-3 px-3 text-right">Previsão</th>
-                    <th className="py-3 px-3 text-right">Recebido</th>
-                    <th className="py-3 px-3 text-right">Rendimento</th>
-                    <th className="py-3 px-3 text-right">Delta</th>
-                    <th className="py-3 px-3">Docа</th>
-                    <th className="py-3 px-3">Conferente</th>
-                    <th className="py-3 px-3">Comprador</th>
-                    <th className="py-3 px-3">Observações</th>
+                    <th className="py-3 px-3 align-middle">Data</th>
+                    <th className="py-3 px-3 align-middle">Horários prev./lanç.</th>
+                    <th className="py-3 px-3 align-middle">Produto</th>
+                    <th className="py-3 px-3 align-middle">Fornecedor</th>
+                    <th className="py-3 px-3 text-right align-middle">Previsão</th>
+                    <th className="py-3 px-3 text-right align-middle">Recebido</th>
+                    <th className="py-3 px-3 text-right align-middle">Rendimento</th>
+                    <th className="py-3 px-3 text-right align-middle">Delta</th>
+                    <th className="py-3 px-3 align-middle">Docа</th>
+                    <th className="py-3 px-3 align-middle">Conferente</th>
+                    <th className="py-3 px-3 align-middle">Comprador</th>
+                    <th className="py-3 px-3 align-middle">Observações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((it, idx) => (
                     <tr key={it.id} className={clsx('border-b border-slate-100 transition-colors', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-brand-50')}>
-                      <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                      <td className="py-3 px-3 align-top font-semibold text-slate-700 whitespace-normal break-words">
                         {isoDate(it.launch?.referenceDate || it.referenceDate).split('-').reverse().join('/')}
                       </td>
-                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                      <td className="py-3 px-3 align-top text-xs whitespace-normal break-words">
                         <div><span className="text-slate-500">Prev:</span> <b className="text-sky-700">{it.forecastTime ?? '—'}</b></div>
                         <div><span className="text-slate-500">Lanç:</span> <b className="text-emerald-700">{it.entryTime ?? '—'}</b></div>
                       </td>
-                      <td className="py-3 px-3 font-medium text-slate-800 text-sm whitespace-normal break-words min-w-[200px] leading-snug" title={it.productName}>{it.productName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[180px] leading-snug" title={it.supplierName}>{it.supplierName}</td>
-                      <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(Number(it.forecast), 0)}</td>
-                      <td className="py-3 px-3 text-right font-bold text-emerald-700">{brNum(Number(it.received), 0)}</td>
-                      <td className="py-3 px-3 text-right font-bold text-purple-700">{brNum(Number(it.rendimento), 0)}</td>
-                      <td className={clsx('py-3 px-3 text-right font-bold', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>
+                      <td className="py-3 px-3 align-top font-medium text-slate-800 whitespace-normal break-words leading-snug" title={it.productName}>{it.productName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words leading-snug" title={it.supplierName}>{it.supplierName}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-blue-700 whitespace-normal break-words">{brNum(Number(it.forecast), 0)}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-emerald-700 whitespace-normal break-words">{brNum(Number(it.received), 0)}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-purple-700 whitespace-normal break-words">{brNum(Number(it.rendimento), 0)}</td>
+                      <td className={clsx('py-3 px-3 align-top text-right font-bold whitespace-normal break-words', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>
                         {deltaText(it.delta)}
                       </td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.conferenteName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.compradorName}</td>
-                      <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words max-w-[220px]" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.dockName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.conferenteName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.compradorName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

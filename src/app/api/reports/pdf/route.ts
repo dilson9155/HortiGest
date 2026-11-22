@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import PDFDocument from 'pdfkit';
-import { parseDateOnly } from '../../../../lib/calc';
 import { getSession, requireAnyPerm, HttpError } from '../../../../lib/session';
+import { queryReport, type ReportRow } from '../../../../lib/report-query';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,12 @@ function dateBR(d: unknown): string {
   const date = typeof d === 'string' ? new Date(d) : (d as Date);
   if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+}
+
+function deltaLabelBR(v: number): string {
+  const n = Number(v ?? 0);
+  if (!isFinite(n) || n === 0) return '0';
+  return `${n > 0 ? '+' : ''}${fmtInt(n)}`;
 }
 
 function toBuffer(v: unknown): Buffer | null {
@@ -57,130 +63,13 @@ export async function GET(req: Request) {
     { module: 'launches', action: 'view' },
   ]);
 
-  const url = new URL(req.url);
-  const startDate = url.searchParams.get('startDate');
-  const endDate = url.searchParams.get('endDate');
-  const productId = url.searchParams.get('productId');
-  const supplierId = url.searchParams.get('supplierId');
-  const userId = url.searchParams.get('userId');
-  const dockId = url.searchParams.get('dockId');
-  const conferenteId = url.searchParams.get('conferenteId');
-  const compradorId = url.searchParams.get('compradorId');
-  const deltaFilter = url.searchParams.get('delta');
-  const q = (url.searchParams.get('q') ?? '').trim();
-  const timeFrom = url.searchParams.get('timeFrom');
-  const timeTo = url.searchParams.get('timeTo');
-  const history = url.searchParams.get('scope') === 'history';
-  const statusFilter = url.searchParams.get('status');
-
-  // ---------- 1) Buscar dados ----------
-  // Relatórios = estoque real (concluídos). Histórico = todos os registros.
-  const where: any = history
-    ? {}
-    : { status: 'RECEBIDO', launch: { status: 'CONFIRMADO' } };
-  if (statusFilter) where.status = statusFilter;
-  if (startDate || endDate) {
-    where.launch = where.launch ?? {};
-    where.launch.referenceDate = {};
-    const ds = parseDateOnly(startDate);
-    if (ds) where.launch.referenceDate.gte = ds;
-    const de = parseDateOnly(endDate);
-    if (de) where.launch.referenceDate.lte = de;
-  }
-  if (userId) {
-    where.launch = where.launch ?? {};
-    where.launch.userId = userId;
-  }
-  // Responsáveis/doca são gravados por item; mantemos fallback do lançamento.
-  if (dockId) where.AND = [...(where.AND ?? []), { OR: [{ dockId }, { launch: { dockId } }] }];
-  if (conferenteId) where.AND = [...(where.AND ?? []), { OR: [{ conferenteId }, { launch: { conferenteId } }] }];
-  if (compradorId) where.AND = [...(where.AND ?? []), { OR: [{ compradorId }, { launch: { compradorId } }] }];
-  if (productId) where.productId = productId;
-  if (supplierId) where.supplierId = supplierId;
-  if (timeFrom || timeTo) {
-    where.entryTime = where.entryTime ?? {};
-    if (timeFrom) where.entryTime.gte = timeFrom;
-    if (timeTo) where.entryTime.lte = timeTo;
-  }
-  if (q) {
-    where.OR = [
-      { productName: { contains: q, mode: 'insensitive' } },
-      { supplierName: { contains: q, mode: 'insensitive' } },
-      { notes: { contains: q, mode: 'insensitive' } },
-      { dockName: { contains: q, mode: 'insensitive' } },
-      { conferenteName: { contains: q, mode: 'insensitive' } },
-      { compradorName: { contains: q, mode: 'insensitive' } },
-      { launch: { dockName: { contains: q, mode: 'insensitive' } } },
-      { launch: { conferenteName: { contains: q, mode: 'insensitive' } } },
-      { launch: { compradorName: { contains: q, mode: 'insensitive' } } },
-    ];
-  }
-
-  const rows = await prisma.launchItem.findMany({
-    where,
-    include: {
-      launch: {
-        select: {
-          referenceDate: true,
-          dockName: true,
-          conferenteName: true,
-          compradorName: true,
-          user: { select: { name: true } },
-        },
-      },
-    },
-    orderBy: [{ launch: { referenceDate: 'desc' } }, { entryTime: 'asc' }, { productName: 'asc' }],
-  });
-
-  const items = rows
-    .map((it) => ({
-      date: dateBR((it.launch as any)?.referenceDate),
-      forecastTime: it.forecastTime ?? '—',
-      time: it.entryTime ?? '—',
-      product: it.productName,
-      supplier: it.supplierName,
-      forecast: Number(it.forecast),
-      received: Number(it.received),
-      rendimento: Number(it.rendimento),
-      delta: Number(it.received) - Number(it.forecast),
-      dock: it.dockName || (it.launch as any)?.dockName || '—',
-      compradorName: it.compradorName || (it.launch as any)?.compradorName || '—',
-      conferenteName: it.conferenteName || (it.launch as any)?.conferenteName || '—',
-      notes: it.notes ?? '',
-      kg: Number(it.boxKg),
-    }))
-    .filter((it) => {
-      // delta = recebido - previsão: veio a mais => positivo; veio a menos => negativo.
-      if (deltaFilter === 'MAIS') return it.delta > 0;
-      if (deltaFilter === 'MENOS') return it.delta < 0;
-      if (deltaFilter === 'OK') return it.delta === 0;
-      return true;
-    });
-
-  const totals = items.reduce(
-    (acc, it) => {
-      acc.forecast += it.forecast;
-      acc.received += it.received;
-      acc.rendimento += it.rendimento;
-      acc.delta += it.delta;
-      acc.forecastKg += it.forecast * it.kg;
-      acc.receivedKg += it.received * it.kg;
-      acc.deltaKg += it.delta * it.kg;
-      return acc;
-    },
-    { forecast: 0, received: 0, rendimento: 0, delta: 0, forecastKg: 0, receivedKg: 0, deltaKg: 0 },
-  );
-
-  // ---------- 2) Empresa / logo ----------
-  const nameRow = await prisma.systemSetting.findFirst({ where: { key: 'company.name' } });
-  const companyName = nameRow?.value ?? 'HortiGest';
+  const ctx = await queryReport(new URL(req.url));
+  const { items, totals, params, companyName, emittedAt } = ctx;
+  const history = params.history;
   const logoBuffer = await getCompanyLogoBuffer();
-
-  const period = `${startDate ? dateBR(startDate) : 'início'} a ${endDate ? dateBR(endDate) : 'hoje'}`;
-  const emittedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const period = ctx.period;
   const sessionName = session.name;
 
-  // ---------- 3) Gerar PDF ----------
   const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -205,27 +94,22 @@ export async function GET(req: Request) {
       const pageH = doc.page.height;
       const contentW = pageW - MARGIN * 2;
 
-      // Colunas (larguras somam exatamente contentW).
+      // Larguras fixas; as observações recebem o espaço restante.
       type Col = { label: string; w: number; align: 'left' | 'right' };
-      let productW = 150;
-      let supplierW = 140;
-      let notesW = 185;
-      let fixed = 62 + 78 + 62 + 62 + 62 + 62 + 76; // data, horários, previsão, recebido, rendimento, delta, docа
-      const diff = contentW - (fixed + productW + supplierW + notesW);
-      notesW += diff;
-
       const cols: Col[] = [
-        { label: 'Data', w: 62, align: 'left' },
-        { label: 'Horários', w: 78, align: 'left' },
-        { label: 'Produto', w: productW, align: 'left' },
-        { label: 'Fornecedor', w: supplierW, align: 'left' },
-        { label: 'Previsão', w: 62, align: 'right' },
-        { label: 'Recebido', w: 62, align: 'right' },
-        { label: 'Rendimento', w: 62, align: 'right' },
-        { label: 'Delta', w: 62, align: 'right' },
-        { label: 'Docа', w: 76, align: 'left' },
-        { label: 'Observações', w: notesW, align: 'left' },
+        { label: 'Data', w: 52, align: 'left' },
+        { label: 'Horários', w: 70, align: 'left' },
+        { label: 'Produto', w: 128, align: 'left' },
+        { label: 'Fornecedor', w: 118, align: 'left' },
+        { label: 'Previsão', w: 52, align: 'right' },
+        { label: 'Recebido', w: 52, align: 'right' },
+        { label: 'Rendim.', w: 56, align: 'right' },
+        { label: 'Delta', w: 50, align: 'right' },
+        { label: 'Docа', w: 62, align: 'left' },
+        { label: 'Observações / Responsáveis', w: 0, align: 'left' },
       ];
+      cols[cols.length - 1].w = contentW - cols.slice(0, -1).reduce((s, c) => s + c.w, 0);
+
       const colX: number[] = [];
       {
         let x = MARGIN;
@@ -236,16 +120,26 @@ export async function GET(req: Request) {
       }
       const tableRight = colX[cols.length - 1] + cols[cols.length - 1].w;
 
-      const ROW_H = 25;
       const padX = 5;
       const maxY = pageH - 54;
 
-      function fitText(text: unknown, maxW: number): string {
-        let s = String(text ?? '').trim();
-        if (!s) return '';
-        if (doc.widthOfString(s) <= maxW) return s;
-        while (s.length > 1 && doc.widthOfString(s + '…') > maxW) s = s.slice(0, -1);
-        return s + '…';
+      /** Quebra texto em linhas dentro da largura — nunca usa reticências. */
+      function textHeight(text: unknown, maxW: number, font = 'Helvetica', size = 9.5): number {
+        const s = String(text ?? '').trim();
+        if (!s) return 0;
+        doc.font(font).fontSize(size);
+        return doc.heightOfString(s, { width: maxW });
+      }
+
+      /** Reduz a fonte até o texto caber por inteiro, sem cortar. */
+      function fitFont(text: string, maxW: number, font: string, start: number, min: number): number {
+        let size = start;
+        doc.font(font).fontSize(size);
+        while (size > min && doc.widthOfString(text) > maxW) {
+          size -= 0.5;
+          doc.font(font).fontSize(size);
+        }
+        return size;
       }
 
       function drawHeader() {
@@ -254,6 +148,7 @@ export async function GET(req: Request) {
         doc.rect(MARGIN, MARGIN, 5, hH).fill('#15803d');
         doc.rect(MARGIN, MARGIN + hH - 2.5, contentW, 2.5).fill('#134e4a');
 
+        const rightX = pageW - MARGIN - 300;
         const logoX = MARGIN + 16;
         const textX = logoBuffer ? MARGIN + 200 : MARGIN + 20;
         if (logoBuffer) {
@@ -263,71 +158,110 @@ export async function GET(req: Request) {
             /* sem logo */
           }
         }
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(16).text(companyName, textX, MARGIN + 11, { width: 320, lineBreak: false, ellipsis: true });
-        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(9).text('Controle de Recebimento de Hortifrúti', textX, MARGIN + 34, { width: 340, lineBreak: false });
+        const companyFont = fitFont(companyName, rightX - textX - 12, 'Helvetica-Bold', 16, 10);
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(companyFont)
+          .text(companyName, textX, MARGIN + 11, { width: rightX - textX - 12, lineBreak: false });
+        doc.fillColor('#ccfbf1').font('Helvetica').fontSize(9)
+          .text('Controle de Recebimento de Hortifrúti', textX, MARGIN + 34, { width: rightX - textX - 12, lineBreak: false });
 
-        const rightX = pageW - MARGIN - 280;
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text(history ? 'HISTÓRICO DE ENTRADAS' : 'RELATÓRIO DE RECEBIMENTO', rightX, MARGIN + 9, { width: 280, align: 'right', lineBreak: false });
+        const reportTitle = history ? 'HISTÓRICO DE ENTRADAS' : 'RELATÓRIO DE RECEBIMENTO';
+        const titleFont = fitFont(reportTitle, 300, 'Helvetica-Bold', 11, 8);
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(titleFont)
+          .text(reportTitle, rightX, MARGIN + 9, { width: 300, align: 'right', lineBreak: false });
         doc.fillColor('#ccfbf1').font('Helvetica').fontSize(8.5)
-          .text(`Emissão: ${emittedAt}`, rightX, MARGIN + 28, { width: 280, align: 'right', lineBreak: false })
-          .text(`Usuário: ${sessionName}`, rightX, MARGIN + 41, { width: 280, align: 'right', lineBreak: false });
+          .text(`Emissão: ${emittedAt}`, rightX, MARGIN + 28, { width: 300, align: 'right', lineBreak: false })
+          .text(`Usuário: ${sessionName}`, rightX, MARGIN + 41, { width: 300, align: 'right', lineBreak: false });
       }
 
       function drawTableHeader(y: number): number {
         doc.rect(MARGIN, y, contentW, 22).fill('#115e59');
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9.5);
         cols.forEach((c, i) => {
-          doc.text(c.label, colX[i] + padX, y + 6, { width: c.w - padX * 2, align: c.align, lineBreak: false });
+          const maxW = c.w - padX * 2;
+          const labelFont = fitFont(c.label, maxW, 'Helvetica-Bold', 9.5, 7);
+          doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(labelFont)
+            .text(c.label, colX[i] + padX, y + 6, { width: maxW, align: c.align, lineBreak: false });
         });
         return y + 22;
       }
 
-      function drawRow(y: number, values: string[], striped: boolean, deltaValue: number, responsaveis: string) {
-        if (striped) doc.rect(MARGIN, y, contentW, ROW_H).fill('#f1f5f9');
-        doc.font('Helvetica').fontSize(9.5);
-        cols.forEach((c, i) => {
+      function drawRow(y: number, it: ReportRow, striped: boolean): number {
+        const values = [
+          dateBR(it.referenceDate),
+          `${it.forecastTime ?? '—'}/${it.entryTime ?? '—'}`,
+          it.productName,
+          it.supplierName,
+          fmtInt(it.forecast),
+          fmtInt(it.received),
+          fmtDec(it.rendimento, 2),
+          deltaLabelBR(it.delta),
+          it.dockName,
+          it.notes || '—',
+        ];
+        const responsaveis = `C: ${it.compradorName}  •  F: ${it.conferenteName}`;
+
+        const heights = cols.map((c, i) => {
           const maxW = c.w - padX * 2;
           if (i === 9) {
-            // Responsáveis por item no topo e observações logo abaixo.
-            doc.fillColor('#1d4ed8').font('Helvetica-Bold').fontSize(8);
-            doc.text(fitText(responsaveis, maxW), colX[i] + padX, y + 4, { width: maxW, align: c.align, lineBreak: false });
-            doc.fillColor('#0f172a').font('Helvetica').fontSize(8);
-            doc.text(fitText(values[i], maxW), colX[i] + padX, y + 14, { width: maxW, align: c.align, lineBreak: false });
+            return textHeight(responsaveis, maxW, 'Helvetica-Bold', 8) +
+              textHeight(values[i], maxW, 'Helvetica', 8) + 3;
+          }
+          return textHeight(values[i], maxW, i === 7 ? 'Helvetica-Bold' : 'Helvetica', 9.5);
+        });
+        const rowH = Math.max(26, Math.max(...heights) + 10);
+
+        if (striped) doc.rect(MARGIN, y, contentW, rowH).fill('#f1f5f9');
+
+        cols.forEach((c, i) => {
+          const maxW = c.w - padX * 2;
+          const x = colX[i] + padX;
+          if (i === 9) {
+            const hResp = textHeight(responsaveis, maxW, 'Helvetica-Bold', 8);
+            doc.fillColor('#1d4ed8').font('Helvetica-Bold').fontSize(8)
+              .text(responsaveis, x, y + 5, { width: maxW, align: c.align });
+            doc.fillColor('#0f172a').font('Helvetica').fontSize(8)
+              .text(values[i], x, y + 5 + hResp + 2, { width: maxW, align: c.align });
             return;
           }
-          if (i === 7) {
-            // Delta negativo = faltou (vermelho); positivo = veio a mais (verde).
-            doc.fillColor(deltaValue < 0 ? '#b91c1c' : deltaValue > 0 ? '#047857' : '#475569');
-            doc.font('Helvetica-Bold');
-          } else {
-            doc.fillColor('#0f172a');
-            doc.font('Helvetica');
-          }
-          doc.text(fitText(values[i], maxW), colX[i] + padX, y + 7, { width: maxW, align: c.align, lineBreak: false });
+          const top = y + 5 + Math.max(0, (rowH - 10 - heights[i]) / 2);
+          const isDelta = i === 7;
+          doc.fillColor(isDelta ? (it.delta < 0 ? '#b91c1c' : it.delta > 0 ? '#047857' : '#475569') : '#0f172a')
+            .font(isDelta ? 'Helvetica-Bold' : 'Helvetica')
+            .fontSize(9.5)
+            .text(values[i], x, top, { width: maxW, align: c.align });
         });
-        doc.moveTo(MARGIN, y + ROW_H).lineTo(tableRight, y + ROW_H).lineWidth(0.4).strokeColor('#e2e8f0').stroke();
+
+        doc.moveTo(MARGIN, y + rowH).lineTo(tableRight, y + rowH)
+          .lineWidth(0.4).strokeColor('#e2e8f0').stroke();
+        return rowH;
       }
 
       function newPage(): number {
         doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
         drawHeader();
-        doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Continuação — Período: ${period}`, MARGIN, MARGIN + 66, { width: contentW, lineBreak: false });
+        doc.fillColor('#475569').font('Helvetica').fontSize(9)
+          .text(`Continuação — Período: ${period}`, MARGIN, MARGIN + 66, { width: contentW, lineBreak: false });
         return MARGIN + 78;
       }
 
       drawHeader();
 
       let y = MARGIN + 62 + 12;
-      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text(history ? 'Histórico Geral de Entradas' : 'Relatório Geral de Recebimento', MARGIN, y, { lineBreak: false });
+      const pageTitle = history ? 'Histórico Geral de Entradas' : 'Relatório Geral de Recebimento';
+      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text(pageTitle, MARGIN, y, { lineBreak: false });
       y += 20;
       doc.fillColor('#475569').font('Helvetica').fontSize(10).text(`Período: ${period}`, MARGIN, y, { lineBreak: false });
       y += 16;
-      doc.fillColor('#475569').font('Helvetica').fontSize(9.5).text(
-        `Registros: ${items.length}   •   Previsão: ${fmtInt(totals.forecast)} cx   •   Recebido: ${fmtInt(totals.received)} cx   •   Rendimento: ${fmtDec(totals.rendimento, 2)}   •   Delta: ${deltaLabelBR(totals.delta)} cx   •   (valores em caixas)`,
-        MARGIN, y, { width: contentW, lineBreak: false, ellipsis: true, height: 14 },
-      );
 
-      const cardY = y + 18;
+      const summary =
+        `Registros: ${items.length}   •   Previsão: ${fmtInt(totals.forecast)} cx   •   ` +
+        `Recebido: ${fmtInt(totals.received)} cx   •   Rendimento: ${fmtDec(totals.rendimento, 2)}   •   ` +
+        `Delta: ${deltaLabelBR(totals.delta)} cx   •   (valores em caixas)`;
+      doc.fillColor('#475569').font('Helvetica').fontSize(9.5);
+      const summaryH = doc.heightOfString(summary, { width: contentW });
+      doc.text(summary, MARGIN, y, { width: contentW });
+      y += summaryH + 8;
+
+      const cardY = y;
       const cardH = 46;
       const gap = 10;
       const cardW = (contentW - gap * 3) / 4;
@@ -340,10 +274,15 @@ export async function GET(req: Request) {
       cards.forEach((c, i) => {
         const x = MARGIN + i * (cardW + gap);
         doc.roundedRect(x, cardY, cardW, cardH, 5).fill(c.color);
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9).text(c.label, x + 10, cardY + 6, { width: cardW - 20, lineBreak: false });
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(16).text(`${fmtInt(c.cx)} ${c.label === 'PRODUTOS' ? '' : 'cx'}`, x + 10, cardY + 18, { width: cardW - 20, lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9)
+          .text(c.label, x + 10, cardY + 6, { width: cardW - 20, lineBreak: false });
+        const value = `${fmtInt(c.cx)}${c.label === 'PRODUTOS' ? '' : ' cx'}`;
+        const valueFont = fitFont(value, cardW - 20, 'Helvetica-Bold', 16, 10);
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(valueFont)
+          .text(value, x + 10, cardY + 18, { width: cardW - 20, lineBreak: false });
         if (c.label !== 'PRODUTOS') {
-          doc.fillColor('#e6fffa').font('Helvetica').fontSize(9).text(`${fmtDec(c.kg, 1)} kg`, x + 10, cardY + 35, { width: cardW - 20, lineBreak: false });
+          doc.fillColor('#e6fffa').font('Helvetica').fontSize(9)
+            .text(`${fmtDec(c.kg, 1)} kg`, x + 10, cardY + 35, { width: cardW - 20, lineBreak: false });
         }
       });
 
@@ -356,27 +295,27 @@ export async function GET(req: Request) {
           MARGIN, y + 26, { width: contentW, align: 'center', lineBreak: false },
         );
       } else {
-        items.forEach((it, idx) => {
-          if (y + ROW_H > maxY) {
+        let rowIndex = 0;
+        for (const it of items) {
+          const probeH = Math.max(
+            textHeight(it.notes || '—', cols[9].w - padX * 2, 'Helvetica', 8) + 24,
+            26,
+          );
+          if (y + probeH > maxY) {
             y = newPage();
             y = drawTableHeader(y);
           }
-          const values = [
-            it.date, `${it.forecastTime}/${it.time}`, it.product, it.supplier,
-            fmtInt(it.forecast), fmtInt(it.received), fmtDec(it.rendimento, 2), deltaLabelBR(it.delta), it.dock, it.notes,
-          ];
-          const responsaveis = `C: ${it.compradorName}  •  F: ${it.conferenteName}`;
-          drawRow(y, values, idx % 2 === 1, it.delta, responsaveis);
-          y += ROW_H;
-        });
+          y += drawRow(y, it, rowIndex % 2 === 1);
+          rowIndex += 1;
+        }
 
         if (y + 46 > maxY) {
           y = newPage();
           y = drawTableHeader(y);
         }
         doc.rect(MARGIN, y, contentW, 26).fill('#134e4a');
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10);
-        doc.text('TOTAIS', MARGIN + 8, y + 8, { width: colX[4] - MARGIN - 12, lineBreak: false });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10)
+          .text('TOTAIS', MARGIN + 8, y + 8, { width: colX[4] - MARGIN - 12, lineBreak: false });
         const totVals: Array<{ value: number; format: (v: number) => string }> = [
           { value: totals.forecast, format: fmtInt },
           { value: totals.received, format: fmtInt },
@@ -388,10 +327,11 @@ export async function GET(req: Request) {
           doc.text(format(value), colX[4 + i] + padX, y + 8, { width: c.w - padX * 2, align: 'right', lineBreak: false });
         });
         y += 30;
-        doc.fillColor('#334155').font('Helvetica').fontSize(9).text(
-          `Peso total (kg) — Previsão: ${fmtDec(totals.forecastKg, 1)}   •   Recebido: ${fmtDec(totals.receivedKg, 1)}   •   Delta: ${fmtDec(totals.deltaKg, 1)}`,
-          MARGIN, y, { width: contentW, lineBreak: false, ellipsis: true, height: 12 },
-        );
+        const weight = `Peso total (kg) — Previsão: ${fmtDec(totals.forecastKg, 1)}   •   Recebido: ${fmtDec(totals.receivedKg, 1)}   •   Delta: ${fmtDec(totals.deltaKg, 1)}`;
+        doc.fillColor('#334155').font('Helvetica').fontSize(9);
+        const weightH = doc.heightOfString(weight, { width: contentW });
+        doc.text(weight, MARGIN, y, { width: contentW });
+        y += weightH;
       }
 
       const range = doc.bufferedPageRange();
@@ -400,8 +340,10 @@ export async function GET(req: Request) {
         doc.page.margins.bottom = 0;
         const yy = pageH - 28;
         doc.moveTo(MARGIN, yy - 6).lineTo(tableRight, yy - 6).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-        doc.fillColor('#64748b').font('Helvetica').fontSize(8.5);
-        doc.text(`HortiGest  •  ${companyName}  •  Emitido em ${emittedAt}`, MARGIN, yy, { width: contentW - 120, lineBreak: false });
+        const footer = `HortiGest  •  ${companyName}  •  Emitido em ${emittedAt}`;
+        const footerFont = fitFont(footer, contentW - 130, 'Helvetica', 8.5, 7);
+        doc.fillColor('#64748b').font('Helvetica').fontSize(footerFont)
+          .text(footer, MARGIN, yy, { width: contentW - 130, lineBreak: false });
         doc.text(`Página ${i + 1} de ${range.count}`, MARGIN, yy, { width: contentW, align: 'right', lineBreak: false });
       }
 
@@ -411,17 +353,12 @@ export async function GET(req: Request) {
     }
   });
 
+  const base = history ? 'historico-entradas' : 'relatorio-recebimento';
   return new NextResponse(pdfBuffer as any, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="relatorio-recebimento-${Date.now()}.pdf"`,
+      'Content-Disposition': `inline; filename="${base}-${Date.now()}.pdf"`,
       'Cache-Control': 'no-store',
     },
   });
-}
-
-function deltaLabelBR(v: number): string {
-  const n = Number(v ?? 0);
-  if (!isFinite(n) || n === 0) return '0';
-  return `${n > 0 ? '+' : ''}${fmtInt(n)}`;
 }
