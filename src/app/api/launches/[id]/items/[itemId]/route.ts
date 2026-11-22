@@ -15,10 +15,11 @@ const patchSchema = z.object({
 export const PATCH = handler(async (req, ctx) => {
   const session = await getSession(req);
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
+  // Ajuste de conferência: compradores não podem alterar rendimento/observação do recebimento.
   requireAnyPerm(session, [
-    { module: 'launches', action: 'edit' },
-    { module: 'reports', action: 'view' },
-    { module: 'launches', action: 'view' },
+    { module: 'launches_reviewers', action: 'view' },
+    { module: 'launches_reviewers', action: 'create' },
+    { module: 'launches_reviewers', action: 'edit' },
   ]);
 
   const params = await ctx?.params;

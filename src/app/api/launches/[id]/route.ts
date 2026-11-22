@@ -1,4 +1,5 @@
 import { prisma } from '../../../../lib/prisma';
+import { applyBuyerGuard } from '../../../../lib/launch-guard';
 import { handler } from '../../../../lib/api-handler';
 import { getSession, requireAnyPerm, requirePerm, routeId, HttpError } from '../../../../lib/session';
 import {
@@ -35,11 +36,12 @@ export const PUT = handler(async (req, ctx) => {
   ]);
 
   const id = await routeId(ctx);
-  const payload = launchSchema.parse(await req.json());
-  const { refDate, items, received } = normalizeLaunch(payload);
-
   const before = await prisma.launch.findUnique({ where: { id }, include: { items: true } });
   if (!before) throw new HttpError(404, 'NAO_ENCONTRADO', 'Lançamento não encontrado.');
+
+  const parsed = launchSchema.parse(await req.json());
+  const payload = applyBuyerGuard(parsed, session, before);
+  const { refDate, items, received } = normalizeLaunch(payload);
 
   await assertNoDuplicateReceived(refDate, received, id);
 

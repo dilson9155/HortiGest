@@ -1,4 +1,5 @@
 import { prisma } from '../../../lib/prisma';
+import { applyBuyerGuard } from '../../../lib/launch-guard';
 import { handler } from '../../../lib/api-handler';
 import { getSession, requirePerm, HttpError } from '../../../lib/session';
 import {
@@ -98,7 +99,8 @@ export const POST = handler(async (req) => {
   if (!session) throw new HttpError(401, 'UNAUTHORIZED', 'Autenticação necessária.');
   requirePerm(session, 'launches', 'create');
 
-  const payload = launchSchema.parse(await req.json());
+  const parsed = launchSchema.parse(await req.json());
+  const payload = applyBuyerGuard(parsed, session);
   const { refDate, items, received } = normalizeLaunch(payload);
   await assertNoDuplicateReceived(refDate, received);
 

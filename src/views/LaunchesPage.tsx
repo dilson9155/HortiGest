@@ -172,6 +172,12 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const canEditModule = can(launchModule, 'edit');
   const canDelete = can(launchModule, 'delete');
   const canBuyersView = can('launches_buyers', 'view');
+  // Dados de conferência (conferente, recebido, rendimento e horário) só são editáveis
+  // por quem acessa o módulo Lançamento conferentes.
+  const canEditReceiving = (['view', 'create', 'edit'] as const).some((action) =>
+    can('launches_reviewers', action),
+  );
+  const receivingLocked = mode === 'buyers' && !canEditReceiving;
 
   const [date, setDate] = useState(todayISO());
   const [dockId, setDockId] = useState('');
@@ -847,6 +853,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             Padrões para novos itens. O comprador vem somente dos cadastros; cada item pode ter seu próprio comprador, doca, horário previsto e observação.
+            {receivingLocked ? ' Conferente, recebido, rendimento e horário de conferência aparecem apenas para leitura.' : ''}
           </p>
         </div>
 
@@ -931,18 +938,24 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     {showFullEdit && (
                       <>
                         <td className="border border-emerald-100 p-1.5 align-middle">
-                          <select
-                            value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
-                            onChange={(e) => {
-                              const found = conferentes.find((c) => c.id === e.target.value);
-                              setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
-                            }}
-                            className="input !h-9 !text-sm !px-2"
-                            title="Somente conferentes cadastrados"
-                          >
-                            <option value="">Selecione...</option>
-                            {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
+                          {receivingLocked ? (
+                            <div className="flex h-9 items-center justify-center rounded-md bg-emerald-50/60 px-2 text-sm text-emerald-900" title="Somente o setor de conferência pode alterar">
+                              {r.conferenteName || '—'}
+                            </div>
+                          ) : (
+                            <select
+                              value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
+                              onChange={(e) => {
+                                const found = conferentes.find((c) => c.id === e.target.value);
+                                setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
+                              }}
+                              className="input !h-9 !text-sm !px-2"
+                              title="Somente conferentes cadastrados"
+                            >
+                              <option value="">Selecione...</option>
+                              {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          )}
                         </td>
                         <td className="border border-emerald-100 p-1.5 align-middle">
                           <div
@@ -953,10 +966,22 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           </div>
                         </td>
                         <td className="border border-emerald-100 p-1.5 align-middle">
-                          <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          {receivingLocked ? (
+                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800" title="Somente o setor de conferência pode alterar">
+                              {brNum(r.received, 0)}
+                            </div>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          )}
                         </td>
                         <td className="border border-emerald-100 p-1.5 align-middle">
-                          <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          {receivingLocked ? (
+                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800" title="Somente o setor de conferência pode alterar">
+                              {brNum(r.rendimento, 0)}
+                            </div>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          )}
                         </td>
                         <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
                           {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
