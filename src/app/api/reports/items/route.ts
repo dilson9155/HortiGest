@@ -12,6 +12,8 @@ export const GET = handler(async (req) => {
   requireAnyPerm(session, [
     { module: 'reports', action: 'view' },
     { module: 'launches', action: 'view' },
+    { module: 'launches_buyers', action: 'view' },
+    { module: 'launches_reviewers', action: 'view' },
   ]);
 
   const { items, totals } = await queryReport(new URL(req.url));

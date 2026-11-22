@@ -347,6 +347,8 @@ export async function GET(req: Request) {
   requireAnyPerm(session, [
     { module: 'reports', action: 'export' },
     { module: 'launches', action: 'view' },
+    { module: 'launches_buyers', action: 'view' },
+    { module: 'launches_reviewers', action: 'view' },
   ]);
 
   const url = new URL(req.url);

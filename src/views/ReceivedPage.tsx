@@ -55,6 +55,43 @@ type Totals = {
   deltaKg: number;
 };
 
+export type HistoryMode = 'all' | 'buyers' | 'reviewers';
+
+type HistoryConfig = {
+  title: string;
+  description: string;
+  editPath: (launchId: string) => string;
+  editLabel: string;
+  downloadBase: string;
+};
+
+const HISTORY_CONFIG: Record<HistoryMode, HistoryConfig> = {
+  all: {
+    title: 'Histórico de entradas',
+    description:
+      'Todos os registros de entradas, pendentes ou conferidos, com previsão, recebido, rendimento, delta, horário, doca, comprador, conferente e opção de editar.',
+    editPath: (id) => `/lancamentos-compradores?edit=${encodeURIComponent(id)}`,
+    editLabel: 'Editar lançamento',
+    downloadBase: 'historico-entradas',
+  },
+  buyers: {
+    title: 'Histórico de lançamento compradores',
+    description:
+      'Todas as previsões lançadas pelos compradores. Edite produto, fornecedor, quantidade, horário previsto e observações de cada item.',
+    editPath: (id) => `/lancamentos-compradores?edit=${encodeURIComponent(id)}`,
+    editLabel: 'Editar previsão',
+    downloadBase: 'historico-compradores',
+  },
+  reviewers: {
+    title: 'Histórico lançamento conferentes',
+    description:
+      'Todos os recebimentos conferidos. Edite recebido, rendimento e observação de cada item; os campos de conferência são preservados para o seu perfil.',
+    editPath: (id) => `/lancamentos-conferentes?edit=${encodeURIComponent(id)}`,
+    editLabel: 'Editar conferência',
+    downloadBase: 'historico-conferentes',
+  },
+};
+
 const emptyFilters = {
   startDate: '',
   endDate: '',
@@ -81,7 +118,8 @@ function dateBR(d: unknown) {
   return s ? s.split('-').reverse().join('/') : '—';
 }
 
-export default function ReceivedPage() {
+export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
+  const config = HISTORY_CONFIG[mode];
   const { can } = useAuth();
   const { toast } = useToast();
   const [filters, setFilters] = useState(emptyFilters);
@@ -115,7 +153,7 @@ export default function ReceivedPage() {
       setItems(r.data.items);
       setTotals(r.data.totals);
     } else {
-      toast('error', errorMessage(r, 'Falha ao carregar o histórico de entradas.'));
+      toast('error', errorMessage(r, `Falha ao carregar ${config.title}.`));
     }
   }
 
@@ -161,7 +199,7 @@ export default function ReceivedPage() {
 
   async function download(format: ReportFormat) {
     setLoading(true);
-    const r = await downloadReport(query(), format, 'historico-entradas');
+    const r = await downloadReport(query(), format, config.downloadBase);
     setLoading(false);
     if (r.ok) {
       toast('success', format === 'pdf' ? 'PDF gerado.' : `Arquivo ${format.toUpperCase()} gerado.`);
@@ -175,11 +213,16 @@ export default function ReceivedPage() {
     [filters],
   );
 
+  const canExport =
+    can('reports', 'export') ||
+    can('launches', 'view') ||
+    (mode !== 'all' && can(mode === 'buyers' ? 'launches_buyers' : 'launches_reviewers', 'view'));
+
   return (
     <div className="space-y-5 max-w-[1500px] mx-auto">
       <SectionCard
-        title="Histórico de entradas"
-        description="Todos os registros de entradas, pendentes ou conferidos, com previsão, recebido, rendimento, delta, horário, doca, comprador, conferente e opção de editar."
+        title={config.title}
+        description={config.description}
         actions={
           <>
             <Button variant="secondary" onClick={() => setFilters(emptyFilters)}>
@@ -188,7 +231,7 @@ export default function ReceivedPage() {
             <Button variant="secondary" onClick={search}>
               <RefreshCw size={15} /> Atualizar
             </Button>
-            {can('reports', 'export') && (
+            {canExport && (
               <>
                 <Button variant="secondary" onClick={() => download('xlsx')} title="Excel moderno, estilizado e com filtros">
                   <FileSpreadsheet size={15} /> Excel (.xlsx)
@@ -367,9 +410,9 @@ export default function ReceivedPage() {
                       </td>
                       <td className="py-3 px-3 align-top text-right">
                         <Link
-                          href={`/lancamentos-compradores?edit=${it.launchId}`}
+                          href={config.editPath(it.launchId)}
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"
-                          title="Editar lançamento"
+                          title={config.editLabel}
                         >
                           <Pencil size={16} /> Editar
                         </Link>
@@ -414,9 +457,9 @@ export default function ReceivedPage() {
                       </div>
                     </div>
                     <Link
-                      href={`/lancamentos-compradores?edit=${it.launchId}`}
+                      href={config.editPath(it.launchId)}
                       className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"
-                      title="Editar"
+                      title={config.editLabel}
                     >
                       <Pencil size={16} /> Editar
                     </Link>

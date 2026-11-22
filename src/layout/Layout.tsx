@@ -14,6 +14,7 @@ import {
   Users,
   Settings,
   History,
+  ClipboardCheck,
   LogOut,
   Menu,
   X,
@@ -82,7 +83,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const items: Item[] = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', action: 'view' },
     { to: '/lancamentos-compradores', label: 'Lançamento compradores', icon: ClipboardList, module: 'launches_buyers', action: 'view' },
+    { to: '/historico-lancamentos-compradores', label: 'Histórico de lançamento compradores', icon: History, module: 'launches_buyers', action: 'view' },
     { to: '/lancamentos-conferentes', label: 'Lançamento conferentes', icon: ListChecks, module: 'launches_reviewers', action: 'view' },
+    { to: '/historico-lancamentos-conferentes', label: 'Histórico lançamento conferentes', icon: ClipboardCheck, module: 'launches_reviewers', action: 'view' },
     { to: '/recebidos', label: 'Histórico de entradas', icon: CheckCircle2, module: 'launches', action: 'view' },
     { to: '/produtos', label: 'Produtos', icon: Boxes, module: 'products', action: 'view' },
     { to: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'suppliers', action: 'view' },

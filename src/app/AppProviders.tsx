@@ -66,6 +66,23 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
+  // PWA: registra o service worker apenas em produção para não interferir no HMR.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const register = () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+        /* instalação do PWA é opcional */
+      });
+    };
+
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register, { once: true });
+
+    return () => window.removeEventListener('load', register);
+  }, []);
+
   return (
     <ClientOnly>
       <ToastProvider>

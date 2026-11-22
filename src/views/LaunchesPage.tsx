@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   ListChecks,
@@ -177,7 +177,6 @@ export type LaunchMode = 'buyers' | 'reviewers';
 export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
   const { can, loading: loadingAuth } = useAuth();
   const { toast } = useToast();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const editParam = searchParams.get('edit');
   const launchModule = mode === 'buyers' ? 'launches_buyers' : 'launches_reviewers';
@@ -188,7 +187,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const canCreate = can(launchModule, 'create');
   const canEditModule = can(launchModule, 'edit');
   const canDelete = can(launchModule, 'delete');
-  const canBuyersView = can('launches_buyers', 'view');
   // Dados de conferência (conferente, recebido, rendimento e horário) só são editáveis
   // por quem acessa o módulo Lançamento conferentes.
   const canEditReceiving = (['view', 'create', 'edit'] as const).some((action) =>
@@ -214,7 +212,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const canEdit =
     canEditModule ||
     can(launchModule, 'create') ||
-    ((!!editingLaunchId || openedFromHistory) && canHistoryEdit);
+    ((!!editingLaunchId || openedFromHistory) && (canHistoryEdit || can(launchModule, 'view')));
 
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
@@ -574,12 +572,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Na tela do conferente, o botão editar abre a tela do comprador já no lançamento.
+  // Editar carrega o lançamento no formulário da própria tela (comprador ou conferente).
   function openLaunchEditor(launch: any) {
-    if (mode === 'reviewers') {
-      router.push(`/lancamentos-compradores?edit=${encodeURIComponent(launch.id)}`);
-      return;
-    }
     loadLaunchIntoForm(launch);
   }
 
@@ -819,8 +813,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         onCancel={() => setConfirmDelId(null)}
       />
 
-      {/* ===================== MÓDULO 1 — LANÇAMENTOS ===================== */}
-      {mode === 'buyers' && (
+      {/* ===================== MÓDULO 1 — LANÇAMENTOS / EDIÇÃO ===================== */}
+      {(mode === 'buyers' || !!editingLaunchId) && (
       <section className={clsx('rounded-2xl bg-white shadow-soft border p-4 sm:p-5', editingLaunchId ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200')}>
         <header className="mb-4 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -829,10 +823,16 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {editingLaunchId ? 'Editando lançamento' : 'Lançamento compradores'}
+                {mode === 'reviewers'
+                  ? 'Editando conferência'
+                  : editingLaunchId
+                    ? 'Editando lançamento'
+                    : 'Lançamento compradores'}
               </h2>
               <p className="text-sm text-slate-600">
-                Registre produto, fornecedor, comprador, doca, horário previsto e previsão. Tudo salvo fica agrupado para o conferente.
+                {mode === 'reviewers'
+                  ? 'Ajuste os dados de conferência deste lançamento. O horário do conferente é registrado automaticamente e o grupo permanece pendente até todos os itens serem conferidos.'
+                  : 'Registre produto, fornecedor, comprador, doca, horário previsto e previsão. Tudo salvo fica agrupado para o conferente.'}
               </p>
             </div>
           </div>
@@ -1059,7 +1059,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           <button onClick={addRow} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
             <Plus size={17} /> Adicionar linha
           </button>
-          <span className="text-xs text-slate-500">Você pode salvar item por item. Use <b>Tab</b> para percorrer as colunas. Cada previsão salva fica disponível no módulo <b>Lançamento conferentes</b>.</span>
+          <span className="text-xs text-slate-500">
+            {mode === 'reviewers'
+              ? 'Você pode salvar item por item. Use Tab para percorrer as colunas; o grupo sai da pendência quando todos os itens estiverem conferidos.'
+              : <>Você pode salvar item por item. Use <b>Tab</b> para percorrer as colunas. Cada previsão salva fica disponível no módulo <b>Lançamento conferentes</b>.</>}
+          </span>
         </div>
       </section>
       )}
@@ -1085,10 +1089,10 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               <RefreshCw size={16} /> Atualizar
             </Button>
             <Link
-              href="/recebidos"
+              href="/historico-lancamentos-conferentes"
               className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 transition"
             >
-              <History size={18} /> Histórico de entradas <ArrowRight size={17} />
+              <History size={18} /> Histórico conferentes <ArrowRight size={17} />
             </Link>
           </div>
         </header>
@@ -1248,7 +1252,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                                 <Save size={17} />
                               </button>
                             )}
-                            {canEdit && canBuyersView && (
+                            {canEdit && (
                               <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
                                 <Pencil size={17} />
                               </button>
@@ -1297,7 +1301,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           <div className="flex gap-1 shrink-0">
                             {canEdit && !receivedItem && <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>}
                             {canEdit && receivedItem && <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>}
-                            {canEdit && canBuyersView && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
+                            {canEdit && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
                             {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>}
                           </div>
                         </div>
@@ -1367,8 +1371,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
           <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
           <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
-          <Link href="/recebidos" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-            Abrir histórico de entradas <ArrowRight size={15} />
+          <Link href="/historico-lancamentos-conferentes" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+            Abrir histórico conferentes <ArrowRight size={15} />
           </Link>
           {loadingLists && <Spinner />}
         </div>

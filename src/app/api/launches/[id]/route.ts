@@ -32,6 +32,8 @@ export const PUT = handler(async (req, ctx) => {
     { module: 'launches', action: 'edit' },
     { module: 'reports', action: 'view' },
     { module: 'launches', action: 'view' },
+    { module: 'launches_buyers', action: 'edit' },
+    { module: 'launches_reviewers', action: 'edit' },
   ]);
 
   const id = await routeId(ctx);
