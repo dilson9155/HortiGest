@@ -3,7 +3,6 @@ import { applyBuyerGuard } from '../../../../lib/launch-guard';
 import { handler } from '../../../../lib/api-handler';
 import { getSession, requireAnyPerm, requirePerm, routeId, HttpError } from '../../../../lib/session';
 import {
-  assertNoDuplicateReceived,
   launchInclude,
   launchSchema,
   launchStatusFor,
@@ -42,8 +41,6 @@ export const PUT = handler(async (req, ctx) => {
   const parsed = launchSchema.parse(await req.json());
   const payload = applyBuyerGuard(parsed, session, before);
   const { refDate, items, received } = normalizeLaunch(payload);
-
-  await assertNoDuplicateReceived(refDate, received, id);
 
   const updated = await prisma.$transaction(async (tx) => {
     const refs = await resolveReceivingRefs(tx, payload, items);

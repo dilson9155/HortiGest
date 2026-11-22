@@ -126,48 +126,9 @@ export function normalizeLaunch(payload: LaunchPayload) {
   });
 
   const received = items.filter((i) => i.itemStatus === 'RECEBIDO');
-  const keys = new Set(received.map((i) => `${i.productId}_${i.supplierId}`));
-  if (keys.size !== received.length) {
-    throw new HttpError(
-      409,
-      'DUPLICADO_FORMULARIO',
-      'Existem produtos recebidos duplicados (mesmo produto + fornecedor) no formulário.',
-    );
-  }
-
+  // Produtos repetidos (mesmo produto + fornecedor) são permitidos: a conferência
+  // pode chegar em mais de uma entrega no mesmo dia.
   return { refDate, items, received };
-}
-
-export async function assertNoDuplicateReceived(
-  refDate: Date,
-  received: NormalizedItem[],
-  ignoreLaunchId?: string,
-) {
-  if (!received.length) return;
-  const existing = await prisma.launchItem.findMany({
-    where: {
-      status: 'RECEBIDO',
-      launch: {
-        referenceDate: refDate,
-        ...(ignoreLaunchId ? { id: { not: ignoreLaunchId } } : {}),
-      },
-      productId: { in: received.map((i) => i.productId) },
-      supplierId: { in: received.map((i) => i.supplierId) },
-    },
-    select: { productId: true, supplierId: true },
-  });
-  const have = new Set(existing.map((e) => `${e.productId}_${e.supplierId}`));
-  const clashes = [...new Set(received.map((i) => `${i.productId}_${i.supplierId}`))].filter((k) =>
-    have.has(k),
-  );
-  if (clashes.length) {
-    throw new HttpError(
-      409,
-      'DUPLICADO',
-      `Já existe ${clashes.length} produto(s) recebido(s) nesta data com o mesmo produto e fornecedor. ` +
-        'Edite o lançamento existente em vez de criar outro.',
-    );
-  }
 }
 
 /** Valida um cadastro e devolve o nome gravado (para snapshot histórico). */

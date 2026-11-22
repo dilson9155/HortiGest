@@ -414,7 +414,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       toast('warning', 'Adicione ao menos um produto com fornecedor selecionado.');
       return;
     }
-    const receivedKeys = new Set<string>();
     for (const [idx, r] of valid.entries()) {
       const nForecast = Number(r.forecast) || 0;
       const nReceived = Number(r.received) || 0;
@@ -422,17 +421,10 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         toast('error', 'Não é permitido valor negativo.');
         return;
       }
-      if (isReceivedRow(r)) {
-        if (!r.conferenteId) {
-          toast('warning', `Item ${idx + 1}: selecione um conferente cadastrado.`);
-          return;
-        }
-        const k = `${r.productId}_${r.supplierId}`;
-        if (receivedKeys.has(k)) {
-          toast('warning', 'Existem produtos recebidos duplicados (mesmo produto e fornecedor).');
-          return;
-        }
-        receivedKeys.add(k);
+      // Mesmo produto + fornecedor pode aparecer mais de uma vez (entregas distintas).
+      if (isReceivedRow(r) && !r.conferenteId) {
+        toast('warning', `Item ${idx + 1}: selecione um conferente cadastrado.`);
+        return;
       }
     }
 
