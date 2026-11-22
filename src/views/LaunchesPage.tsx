@@ -90,9 +90,13 @@ function applyReceiptAuto(row: Row): Row {
   return row;
 }
 
-// Lanceiamentos antigos podem ter só o nome gravado; localiza o cadastro atual.
-function registryIdByName(list: NamedOption[], name: string) {
-  return list.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase())?.id ?? '';
+// Lançamentos antigos podem ter só o nome gravado; localiza o cadastro atual.
+// Nome pode vir nulo do banco, então a comparação é segura.
+function registryIdByName(list: NamedOption[], name?: string | null) {
+  if (!name) return '';
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return '';
+  return list.find((x) => x.name?.trim().toLowerCase() === wanted)?.id ?? '';
 }
 
 function newRow(defaults: RowDefaults = {}): Row {
