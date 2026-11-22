@@ -71,9 +71,10 @@ function newRow(defaults: RowDefaults = {}): Row {
     conferenteName: defaults.conferenteName ?? '',
     dockId: defaults.dockId ?? '',
     forecastTime: '',
-    forecast: 0,
-    received: 0,
-    rendimento: 0,
+    // Vazios de propósito: o zero aparece só como placeholder (fictício).
+    forecast: '',
+    received: '',
+    rendimento: '',
     entryTime: '',
     notes: '',
     status: 'PREVISTO',
@@ -191,21 +192,6 @@ export default function LaunchesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (acc, r) => {
-          acc.forecast += Number(r.forecast) || 0;
-          acc.received += Number(r.received) || 0;
-          acc.rendimento += Number(r.rendimento) || 0;
-          acc.delta += deltaOf(r.forecast, r.received);
-          return acc;
-        },
-        { forecast: 0, received: 0, rendimento: 0, delta: 0 },
-      ),
-    [rows],
-  );
 
   const toOptions = (list: NamedOption[]) =>
     list.map((x) => ({
@@ -671,7 +657,7 @@ export default function LaunchesPage() {
                       </select>
                     </td>
                     <td className="border border-sky-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right" />
+                      <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300" />
                     </td>
                     <td className="border border-emerald-100 p-1.5 align-middle">
                       <input list="hl-conferentes" value={r.conferenteName} onChange={(e) => setRow(idx, { conferenteName: e.target.value, conferenteId: '' })} placeholder="Nome" className="input !h-9 !text-sm !px-2" />
@@ -680,10 +666,10 @@ export default function LaunchesPage() {
                       <input type="time" value={r.entryTime} onChange={(e) => setRow(idx, { entryTime: e.target.value })} className="input !h-9 !text-sm !px-2" title="Ao informar o horário, a situação vira Recebido automaticamente" />
                     </td>
                     <td className="border border-emerald-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right" />
+                      <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300" />
                     </td>
                     <td className="border border-emerald-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right" />
+                      <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300" />
                     </td>
                     <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
                       {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
@@ -711,17 +697,6 @@ export default function LaunchesPage() {
                 );
               })}
             </tbody>
-            <tfoot>
-              <tr className="font-bold text-slate-800 bg-gradient-to-r from-sky-50 to-emerald-50">
-                <td colSpan={5} className="border border-slate-300 px-2 py-2 text-right uppercase text-[11px] tracking-wide">Totais</td>
-                <td className="border border-slate-300 px-2 py-2 text-right text-base text-brand-700">{brNum(totals.forecast, 0)}</td>
-                <td colSpan={2} className="border border-slate-300" />
-                <td className="border border-slate-300 px-2 py-2 text-right text-base text-emerald-700">{brNum(totals.received, 0)}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right text-base text-purple-700">{brNum(totals.rendimento, 0)}</td>
-                <td className="border border-slate-300 px-2 py-2 text-center text-base">{deltaLabel(totals.delta)}</td>
-                <td colSpan={3} className="border border-slate-300" />
-              </tr>
-            </tfoot>
           </table>
         </div>
 
