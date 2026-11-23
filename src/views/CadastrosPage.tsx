@@ -8,12 +8,38 @@ import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
-import { SectionCard, Button, Input, Spinner, Modal, ConfirmDialog, NumberInput, Badge } from '../components/UI';
+import { SectionCard, Button, Input, Spinner, Modal, ConfirmDialog, NumberInput, Select, Badge } from '../components/UI';
 import Toggle from '../components/Toggle';
 
-type Product = { id: string; name: string; defaultBoxKg: number; active: boolean; createdAt: string };
-type Supplier = { id: string; name: string; active: boolean; createdAt: string };
+type Product = {
+  id: string;
+  name: string;
+  defaultBoxKg: number;
+  active: boolean;
+  createdAt: string;
+  code: string | null;
+  category: string | null;
+  unit: string | null;
+  notes: string | null;
+};
+type Supplier = {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  document: string | null;
+  legalName: string | null;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  state: string | null;
+  notes: string | null;
+};
 type CadastroKind = 'products' | 'suppliers' | 'docks' | 'conferentes' | 'compradores';
+
+const PRODUCT_EXTRA_FIELDS = ['code', 'category', 'unit', 'notes'] as const;
+const SUPPLIER_EXTRA_FIELDS = ['document', 'legalName', 'contactName', 'phone', 'email', 'city', 'state', 'notes'] as const;
 
 const REGISTRY_LABELS: Record<Exclude<CadastroKind, 'products' | 'suppliers'>, { title: string; singular: string; description: string }> = {
   docks: {
@@ -37,6 +63,7 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
   const { can } = useAuth();
   const { toast } = useToast();
   const isProduct = kind === 'products';
+  const isCatalog = kind === 'products' || kind === 'suppliers';
   const isRegistry = kind === 'docks' || kind === 'conferentes' || kind === 'compradores';
   const endpoint = isRegistry ? `/registries/${kind}` : `/${kind}`;
   const permModule = isRegistry ? 'products' : kind;
@@ -59,6 +86,11 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
   // form
   const [name, setName] = useState('');
   const [weight, setWeight] = useState<number>(20);
+  const [extra, setExtra] = useState<Record<string, string>>({});
+
+  function setField(key: string, value: string) {
+    setExtra((prev) => ({ ...prev, [key]: value }));
+  }
 
   async function load(p = 1) {
     setLoading(true);
@@ -86,6 +118,7 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
     setEditing(null);
     setName('');
     setWeight(20);
+    setExtra(isCatalog ? { unit: isProduct ? 'CX' : '' } : {});
     setModalOpen(true);
   }
 
@@ -93,6 +126,15 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
     setEditing(item);
     setName(item.name);
     if (isProduct) setWeight(Number((item as Product).defaultBoxKg));
+    if (isCatalog) {
+      const fields = isProduct ? PRODUCT_EXTRA_FIELDS : SUPPLIER_EXTRA_FIELDS;
+      const next: Record<string, string> = {};
+      fields.forEach((key) => { next[key] = String((item as any)[key] ?? ''); });
+      if (isProduct && !next.unit) next.unit = 'CX';
+      setExtra(next);
+    } else {
+      setExtra({});
+    }
     setModalOpen(true);
   }
 
@@ -103,6 +145,11 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
 
     const body: any = { name: name.trim() };
     if (isProduct) body.defaultBoxKg = Number(weight);
+
+    if (isCatalog) {
+      const fields: readonly string[] = isProduct ? PRODUCT_EXTRA_FIELDS : SUPPLIER_EXTRA_FIELDS;
+      fields.forEach((key) => { body[key] = (extra[key] ?? '').trim() || null; });
+    }
 
     const r = editing
       ? await api.put(`${endpoint}/${editing.id}`, body)
@@ -143,6 +190,14 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
   const canEdit = can(permModule, 'edit');
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  function subtitle(item: Product | Supplier): string {
+    if (!isCatalog) return '';
+    const parts = isProduct
+      ? [(item as Product).code, (item as Product).category]
+      : [(item as Supplier).document, (item as Supplier).legalName];
+    return parts.filter(Boolean).join(' · ');
+  }
 
   return (
     <div className="space-y-4">
@@ -200,7 +255,10 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
             <tbody>
               {items.map((it) => (
                 <tr key={it.id} className="border-b hover:bg-slate-50">
-                  <td className="py-2 font-medium text-slate-800">{it.name}</td>
+                  <td className="py-2 font-medium text-slate-800">
+                    <div>{it.name}</div>
+                    {subtitle(it) && <div className="text-xs font-normal text-slate-500">{subtitle(it)}</div>}
+                  </td>
                   {isProduct && (
                     <td>
                       <span className="inline-flex items-center gap-1">
@@ -254,6 +312,7 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 truncate">{it.name}</div>
+                  {subtitle(it) && <div className="text-xs text-slate-500 truncate">{subtitle(it)}</div>}
                   {isProduct && (
                     <div className="text-xs text-slate-500 inline-flex items-center gap-1 mt-0.5">
                       <Scale size={12} /> {Number((it as Product).defaultBoxKg).toFixed(3)} kg / cx
@@ -294,22 +353,141 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
         </div>
       </SectionCard>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar' : 'Novo cadastro'}>
-        <div className="space-y-3">
-          <Input
-            label={`Nome do ${labels.singular}`}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-          {isProduct && (
-            <NumberInput
-              label="Peso padrão da caixa (kg)"
-              value={weight}
-              onValueChange={setWeight}
-              hint="Usado como snapshot em cada item do lançamento."
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? `Editar ${labels.singular}` : `Novo ${labels.singular}`}
+        width={isCatalog ? 'lg' : 'md'}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label={`Nome do ${labels.singular}${isCatalog ? ' *' : ''}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isProduct ? 'Ex.: Maçã Gala' : isCatalog ? 'Ex.: Hortifruti Bom Preço' : ''}
+              maxLength={120}
+              autoFocus
             />
+            {isProduct && (
+              <NumberInput
+                label="Peso padrão da caixa (kg) *"
+                value={weight}
+                onValueChange={setWeight}
+                hint="Usado como snapshot em cada item do lançamento."
+                min={0}
+                step={0.001}
+              />
+            )}
+          </div>
+
+          {isCatalog && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-800">Informações complementares</h3>
+                <Badge tone="slate">opcional</Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {isProduct ? (
+                  <>
+                    <Input
+                      label="Código interno"
+                      value={extra.code ?? ''}
+                      onChange={(e) => setField('code', e.target.value)}
+                      placeholder="Ex.: MAC-GALA"
+                      maxLength={40}
+                    />
+                    <Input
+                      label="Categoria"
+                      value={extra.category ?? ''}
+                      onChange={(e) => setField('category', e.target.value)}
+                      placeholder="Ex.: Fruta, Legume, Verdura"
+                      maxLength={80}
+                    />
+                    <Select
+                      label="Unidade de venda"
+                      value={extra.unit ?? ''}
+                      onChange={(e) => setField('unit', e.target.value)}
+                    >
+                      <option value="">Não informar</option>
+                      <option value="CX">CX — caixa</option>
+                      <option value="KG">KG — quilograma</option>
+                      <option value="UN">UN — unidade</option>
+                    </Select>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      label="Razão social"
+                      value={extra.legalName ?? ''}
+                      onChange={(e) => setField('legalName', e.target.value)}
+                      placeholder="Nome jurídico (opcional)"
+                      maxLength={120}
+                    />
+                    <Input
+                      label="CNPJ/CPF"
+                      value={extra.document ?? ''}
+                      onChange={(e) => setField('document', e.target.value)}
+                      placeholder="00.000.000/0001-00"
+                      maxLength={30}
+                    />
+                    <Input
+                      label="Nome do contato"
+                      value={extra.contactName ?? ''}
+                      onChange={(e) => setField('contactName', e.target.value)}
+                      placeholder="Ex.: João Silva"
+                      maxLength={120}
+                    />
+                    <Input
+                      label="Telefone"
+                      value={extra.phone ?? ''}
+                      onChange={(e) => setField('phone', e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      maxLength={30}
+                    />
+                    <Input
+                      label="E-mail"
+                      type="email"
+                      value={extra.email ?? ''}
+                      onChange={(e) => setField('email', e.target.value)}
+                      placeholder="contato@empresa.com.br"
+                      maxLength={120}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Cidade"
+                        value={extra.city ?? ''}
+                        onChange={(e) => setField('city', e.target.value)}
+                        placeholder="Ex.: São Paulo"
+                        maxLength={80}
+                      />
+                      <Input
+                        label="UF"
+                        value={extra.state ?? ''}
+                        onChange={(e) => setField('state', e.target.value.toUpperCase())}
+                        placeholder="SP"
+                        maxLength={2}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="sm:col-span-2">
+                  <label className="label">Observações</label>
+                  <textarea
+                    className="input min-h-[76px] resize-y"
+                    value={extra.notes ?? ''}
+                    onChange={(e) => setField('notes', e.target.value)}
+                    placeholder="Informações adicionais (opcional)"
+                    maxLength={2000}
+                  />
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-slate-500">
+                Apenas {isProduct ? 'nome e peso da caixa' : 'o nome'} são obrigatórios. Os demais campos podem ficar em branco.
+              </p>
+            </div>
           )}
+
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
               Cancelar

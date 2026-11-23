@@ -135,13 +135,23 @@ model PasswordResetToken {
 // ============================================================
 
 model Supplier {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String   @unique
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  items     LaunchItem[]
+  // Campos complementares opcionais — não são necessários para cadastrar.
+  document    String?
+  legalName   String?
+  contactName String?
+  phone       String?
+  email       String?
+  city        String?
+  state       String?
+  notes       String?
+
+  items       LaunchItem[]
 
   @@index([name])
   @@index([active])
@@ -156,6 +166,12 @@ model Product {
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Campos complementares opcionais — não são necessários para cadastrar.
+  code            String?
+  category        String?
+  unit            String?
+  notes           String?
 
   items           LaunchItem[]
 

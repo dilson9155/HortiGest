@@ -2,13 +2,14 @@ import { z } from 'zod';
 import { prisma } from '../../../lib/prisma';
 import { handler } from '../../../lib/api-handler';
 import { getSession, requirePerm, HttpError } from '../../../lib/session';
+import { supplierExtraSchema } from '../../../lib/catalog-fields';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
   name: z.string().min(1, 'Informe o nome.').max(120),
   active: z.boolean().optional().default(true),
-});
+}).merge(supplierExtraSchema);
 
 const updateSchema = schema.partial();
 
@@ -59,7 +60,19 @@ export const POST = handler(async (req) => {
       entityId: created.id,
       operation: 'CREATE',
       description: `Fornecedor "${created.name}" criado.`,
-      newValues: { id: created.id, name: created.name, active: created.active },
+      newValues: {
+        id: created.id,
+        name: created.name,
+        active: created.active,
+        document: created.document,
+        legalName: created.legalName,
+        contactName: created.contactName,
+        phone: created.phone,
+        email: created.email,
+        city: created.city,
+        state: created.state,
+        notes: created.notes,
+      },
     },
   });
   return created;
@@ -93,8 +106,8 @@ export const PUT = handler(async (req) => {
       entityId: id,
       operation: 'UPDATE',
       description: `Fornecedor "${before.name}" atualizado.`,
-      oldValues: { id: before.id, name: before.name, active: before.active },
-      newValues: { id: after.id, name: after.name, active: after.active },
+      oldValues: { id: before.id, name: before.name, active: before.active, document: before.document, legalName: before.legalName, contactName: before.contactName, phone: before.phone, email: before.email, city: before.city, state: before.state, notes: before.notes },
+      newValues: { id: after.id, name: after.name, active: after.active, document: after.document, legalName: after.legalName, contactName: after.contactName, phone: after.phone, email: after.email, city: after.city, state: after.state, notes: after.notes },
     },
   });
   return after;

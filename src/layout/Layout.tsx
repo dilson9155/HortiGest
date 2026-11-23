@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrandingSafe } from '../contexts/BrandingContext';
+import { SidebarCollapsedContext } from '../contexts/SidebarContext';
 import { useToast } from '../hooks/useToast';
 import { api } from '../lib/api';
 
@@ -100,6 +101,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const filtered = items.filter((i) => canAny(i.module!, ['view']));
 
+  // Com o menu recolhido, as telas de lançamento usam toda a largura disponível.
+  const wideLaunchScreen = collapsed && /^\/(lancamentos|historico-lancamentos|recebidos)(\/|$)/.test(location);
+
   async function handleLogout() {
     try {
       await api.post('/auth/logout');
@@ -134,6 +138,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <SidebarCollapsedContext.Provider value={collapsed}>
     <div className="min-h-screen flex bg-slate-50">
       {/* Sidebar Desktop */}
       <aside
@@ -220,9 +225,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">{children}</div>
+        <div className={clsx('flex-1 p-4 sm:p-6 lg:p-8 w-full mx-auto', wideLaunchScreen ? 'max-w-none' : 'max-w-7xl')}>
+          {children}
+        </div>
       </main>
     </div>
+    </SidebarCollapsedContext.Provider>
   );
 }
 

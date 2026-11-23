@@ -2,13 +2,14 @@ import { z } from 'zod';
 import { prisma } from '../../../../lib/prisma';
 import { handler } from '../../../../lib/api-handler';
 import { getSession, requirePerm, routeId, HttpError } from '../../../../lib/session';
+import { supplierExtraSchema } from '../../../../lib/catalog-fields';
 
 export const runtime = 'nodejs';
 
 const updateSchema = z.object({
   name: z.string().min(1, 'Informe o nome.').max(120).optional(),
   active: z.boolean().optional(),
-});
+}).merge(supplierExtraSchema);
 
 export const PUT = handler(async (req, ctx) => {
   const session = await getSession(req);
@@ -35,8 +36,8 @@ export const PUT = handler(async (req, ctx) => {
       entityId: id,
       operation: 'UPDATE',
       description: `Fornecedor "${before.name}" atualizado.`,
-      oldValues: { id: before.id, name: before.name, active: before.active },
-      newValues: { id: after.id, name: after.name, active: after.active },
+      oldValues: { id: before.id, name: before.name, active: before.active, document: before.document, legalName: before.legalName, contactName: before.contactName, phone: before.phone, email: before.email, city: before.city, state: before.state, notes: before.notes },
+      newValues: { id: after.id, name: after.name, active: after.active, document: after.document, legalName: after.legalName, contactName: after.contactName, phone: after.phone, email: after.email, city: after.city, state: after.state, notes: after.notes },
     },
   });
   return after;

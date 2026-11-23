@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { prisma } from '../../../../lib/prisma';
 import { handler } from '../../../../lib/api-handler';
 import { getSession, requirePerm, routeId, HttpError } from '../../../../lib/session';
+import { productExtraSchema } from '../../../../lib/catalog-fields';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,7 @@ const updateSchema = z.object({
   name: z.string().min(1, 'Informe o nome.').max(120).optional(),
   defaultBoxKg: z.number().positive('O peso da caixa deve ser maior que zero.').max(1000).optional(),
   active: z.boolean().optional(),
-});
+}).merge(productExtraSchema);
 
 export const PUT = handler(async (req, ctx) => {
   const session = await getSession(req);
@@ -36,8 +37,8 @@ export const PUT = handler(async (req, ctx) => {
       entityId: id,
       operation: 'UPDATE',
       description: `Produto "${before.name}" atualizado.`,
-      oldValues: { id: before.id, name: before.name, defaultBoxKg: Number(before.defaultBoxKg), active: before.active },
-      newValues: { id: after.id, name: after.name, defaultBoxKg: Number(after.defaultBoxKg), active: after.active },
+      oldValues: { id: before.id, name: before.name, defaultBoxKg: Number(before.defaultBoxKg), active: before.active, code: before.code, category: before.category, unit: before.unit, notes: before.notes },
+      newValues: { id: after.id, name: after.name, defaultBoxKg: Number(after.defaultBoxKg), active: after.active, code: after.code, category: after.category, unit: after.unit, notes: after.notes },
     },
   });
   return after;

@@ -25,6 +25,7 @@ import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { brNum, isoDate, todayISO } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { useSidebarCollapsed } from '../contexts/SidebarContext';
 import { useToast } from '../hooks/useToast';
 import { Input, Select, Button, Spinner, ConfirmDialog, Badge } from '../components/UI';
 import SearchSelect from '../components/SearchSelect';
@@ -176,6 +177,7 @@ export type LaunchMode = 'buyers' | 'reviewers';
 
 export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
   const { can, loading: loadingAuth } = useAuth();
+  const sidebarCollapsed = useSidebarCollapsed();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const editParam = searchParams.get('edit');
@@ -781,6 +783,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   // Ao abrir pelo histórico, mostra também os campos do conferente para edição completa.
   const showFullEdit = !!editingLaunchId;
 
+  // Com o menu recolhido, as colunas mais usadas ganham espaço e observações fica a maior.
+  const productCol = sidebarCollapsed ? 'min-w-[300px]' : 'min-w-[220px]';
+  const supplierCol = sidebarCollapsed ? 'min-w-[260px]' : 'min-w-[180px]';
+  const buyerCol = sidebarCollapsed ? 'min-w-[230px] text-center' : 'min-w-[150px] text-left';
+  const buyerInputAlign = sidebarCollapsed ? '!text-center' : '';
+  const notesCol = sidebarCollapsed ? 'min-w-[400px]' : 'min-w-[180px]';
+
   if (!loadingAuth && !canView) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
@@ -893,9 +902,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-xs font-semibold text-white bg-slate-700">
-                <th className="border border-slate-300 px-2 py-2 text-center min-w-[220px] text-[15px]">Produto</th>
-                <th className="border border-slate-300 px-2 py-2 text-center min-w-[180px] text-[15px]">Fornecedor</th>
-                <th className="border border-sky-300 bg-sky-700 px-2 py-2 text-left min-w-[150px]">Comprador</th>
+                <th className={clsx('border border-slate-300 px-2 py-2 text-center text-[15px]', productCol)}>Produto</th>
+                <th className={clsx('border border-slate-300 px-2 py-2 text-center text-[15px]', supplierCol)}>Fornecedor</th>
+                <th className={clsx('border border-sky-300 bg-sky-700 px-2 py-2', buyerCol)}>Comprador</th>
                 <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[100px]">Hor. previsto</th>
                 <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[110px]">Docа</th>
                 <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[85px]">Previsão</th>
@@ -909,7 +918,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     <th className="border border-slate-300 px-2 py-2 min-w-[100px]">Situação</th>
                   </>
                 )}
-                <th className="border border-slate-300 px-2 py-2 min-w-[180px]">Observações</th>
+                <th className={clsx('border border-slate-300 px-2 py-2', notesCol)}>Observações</th>
                 <th className="border border-slate-300 px-1.5 py-2 w-20">Ações</th>
               </tr>
             </thead>
@@ -947,7 +956,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           const found = compradores.find((c) => c.id === e.target.value);
                           setRow(idx, { compradorId: e.target.value, compradorName: found?.name ?? '' });
                         }}
-                        className="input !h-9 !text-sm !px-2"
+                        className={clsx('input !h-9 !text-sm !px-2', buyerInputAlign)}
                         title="Somente compradores cadastrados"
                       >
                         <option value="">Selecione...</option>
@@ -1030,7 +1039,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         </td>
                       </>
                     )}
-                    <td className="border border-slate-200 p-1.5 align-middle">
+                    <td className={clsx('border border-slate-200 p-1.5 align-middle', notesCol)}>
                       <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
                     </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
@@ -1155,18 +1164,18 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
               <tr className="border-b border-slate-200">
                 <th className="py-3 px-3">Data</th>
-                <th className="py-3 px-3">Produto</th>
+                <th className={clsx('py-3 px-3', productCol)}>Produto</th>
                 <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
                 <th className="py-3 px-3">Hor. prev.</th>
-                <th className="py-3 px-3">Comprador</th>
+                <th className={clsx('py-3 px-3', buyerCol)}>Comprador</th>
                 <th className="py-3 px-3">Conferente</th>
                 <th className="py-3 px-3 text-right">Recebido</th>
                 <th className="py-3 px-3 text-right">Rendimento</th>
                 <th className="py-3 px-3">Hor. conf.</th>
                 <th className="py-3 px-3 text-right">Delta</th>
                 <th className="py-3 px-3">Situação</th>
-                <th className="py-3 px-3 min-w-[180px]">Observações</th>
+                <th className={clsx('py-3 px-3', notesCol)}>Observações</th>
                 <th className="py-3 px-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -1185,11 +1194,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     return (
                       <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
                         <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                        <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words min-w-[220px] max-w-[320px] leading-snug" title={it.productName ?? ''}>{it.productName}</td>
+                        <td className={clsx('py-3 px-3 font-medium text-sm whitespace-normal break-words leading-snug', productCol, sidebarCollapsed ? 'max-w-[420px]' : 'max-w-[320px]')} title={it.productName ?? ''}>{it.productName}</td>
                         <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
                         <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
                         <td className="py-3 px-3 text-xs whitespace-nowrap"><b className="text-sky-700">{it.forecastTime ?? '—'}</b></td>
-                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words min-w-[140px]" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
+                        <td className={clsx('py-3 px-3 text-slate-600 text-sm whitespace-normal break-words', sidebarCollapsed ? 'min-w-[230px] text-center' : 'min-w-[140px]')} title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
                         <td className="py-3 px-3 min-w-[150px]">
                           {receivedItem ? (
                             <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
@@ -1231,7 +1240,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             {receivedItem ? 'Recebido' : 'Previsão'}
                           </span>
                         </td>
-                        <td className="py-3 px-3 min-w-[180px]">
+                        <td className={clsx('py-3 px-3', notesCol)}>
                           <input
                             value={d.notes}
                             onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
