@@ -100,9 +100,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const filtered = items.filter((i) => canAny(i.module!, ['view']));
 
-  // As telas de lançamento ocupam toda a largura disponível para não esconder colunas.
-  const wideLaunchScreen = /^\/(lancamentos|historico-lancamentos|recebidos)(\/|$)/.test(location);
-
   async function handleLogout() {
     try {
       await api.post('/auth/logout');
@@ -223,7 +220,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className={clsx('flex-1 p-4 sm:p-6 lg:p-8 w-full mx-auto', wideLaunchScreen ? 'max-w-none' : 'max-w-7xl')}>
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full mx-auto max-w-none">
           {children}
         </div>
       </main>
