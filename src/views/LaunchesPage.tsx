@@ -879,8 +879,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                 {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </Select>
             </div>
-            <div className="min-w-[160px] flex-[1.2]">
-              <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" className="!h-9 !text-sm" />
+            <div className="min-w-[280px] flex-[2]">
+              <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="banana para extra 15 kg sem cortes" className="!h-9 !text-sm" />
             </div>
             <Button variant="secondary" onClick={applyDefaultsToRows} className="!h-9 !text-sm">
               Aplicar às linhas
@@ -898,31 +898,31 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <colgroup>
               {showFullEdit ? (
                 <>
-                  <col className="w-[11%]" />  {/* Produto */}
+                  <col className="w-[12%]" />  {/* Produto */}
                   <col className="w-[9%]" />   {/* Fornecedor */}
                   <col className="w-[8%]" />   {/* Comprador */}
-                  <col className="w-[6%]" />   {/* Hor. previsto */}
+                  <col className="w-[5%]" />   {/* Hor. previsto */}
                   <col className="w-[6%]" />   {/* Docа */}
-                  <col className="w-[5%]" />   {/* Previsão */}
-                  <col className="w-[8%]" />   {/* Conferente */}
-                  <col className="w-[6%]" />   {/* Hor. conf. */}
-                  <col className="w-[6%]" />   {/* Recebido */}
-                  <col className="w-[6%]" />   {/* Rendimento */}
-                  <col className="w-[4%]" />   {/* Delta */}
-                  <col className="w-[6%]" />   {/* Situação */}
-                  <col className="w-[15%]" />  {/* Observações */}
+                  <col className="w-[4%]" />   {/* Previsão */}
+                  <col className="w-[7%]" />   {/* Conferente */}
+                  <col className="w-[5%]" />   {/* Hor. conf. */}
+                  <col className="w-[5%]" />   {/* Recebido */}
+                  <col className="w-[5%]" />   {/* Rendimento */}
+                  <col className="w-[3%]" />   {/* Delta */}
+                  <col className="w-[5%]" />   {/* Situação */}
+                  <col className="w-[22%]" />  {/* Observações */}
                   <col className="w-[4%]" />   {/* Ações */}
                 </>
               ) : (
                 <>
-                  <col className="w-[18%]" />  {/* Produto */}
-                  <col className="w-[15%]" />  {/* Fornecedor */}
-                  <col className="w-[14%]" />  {/* Comprador */}
-                  <col className="w-[8%]" />   {/* Hor. previsto */}
-                  <col className="w-[9%]" />   {/* Docа */}
-                  <col className="w-[7%]" />   {/* Previsão */}
-                  <col className="w-[22%]" />  {/* Observações */}
-                  <col className="w-[7%]" />   {/* Ações */}
+                  <col className="w-[16%]" />  {/* Produto */}
+                  <col className="w-[13%]" />  {/* Fornecedor */}
+                  <col className="w-[12%]" />  {/* Comprador */}
+                  <col className="w-[7%]" />   {/* Hor. previsto */}
+                  <col className="w-[8%]" />   {/* Docа */}
+                  <col className="w-[6%]" />   {/* Previsão */}
+                  <col className="w-[32%]" />  {/* Observações */}
+                  <col className="w-[6%]" />   {/* Ações */}
                 </>
               )}
             </colgroup>
@@ -1066,7 +1066,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       </>
                     )}
                     <td className="border border-slate-200 p-1.5 align-middle">
-                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
+                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="banana para extra 15 kg sem cortes" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
                     </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
                       <div className="flex items-center justify-center gap-1">
