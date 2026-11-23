@@ -655,11 +655,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         >
           {collapsed ? <ChevronRight size={18} className="mt-0.5 shrink-0 text-brand-600" /> : <ChevronDown size={18} className="mt-0.5 shrink-0 text-brand-600" />}
           <Truck size={18} className="mt-0.5 shrink-0 text-brand-600" />
-          <span className="min-w-0">
-            <span className="block text-sm sm:text-base font-bold text-slate-900 break-words leading-snug group-hover:text-brand-700" title={group.name}>
+          <span className="min-w-0 max-w-[520px]">
+            <span className="block truncate text-sm font-bold text-brand-700 leading-snug" title={group.name}>
               {group.name}
             </span>
-            <span className="block text-xs text-slate-500">{group.items.length} entrada(s) neste fornecedor</span>
+            <span className="block text-[11px] text-slate-500">{group.items.length} entrada(s) neste fornecedor</span>
           </span>
         </button>
         <div className="shrink-0 text-right pl-2">
@@ -1210,7 +1210,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
           {/* Tabela única, igual à dos compradores: todas as colunas visíveis e edição direta. */}
           <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
-            <table className="w-full table-fixed border-collapse text-sm">
+            <table className="w-full table-fixed border-collapse text-sm min-w-[1200px] lg:min-w-0">
               <colgroup>
                 <col className="w-[7%]" />   {/* Data */}
                 <col className="w-[10%]" />  {/* Produto */}
@@ -1229,20 +1229,20 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               </colgroup>
               <thead className="sticky top-0 z-10">
                 <tr className="text-xs font-semibold text-white bg-slate-700">
-                  <th className="border border-slate-300 px-2 py-2">Data</th>
-                  <th className="border border-slate-300 px-2 py-2">Produto</th>
-                  <th className="border border-slate-300 px-2 py-2 text-right">Previsão</th>
-                  <th className="border border-slate-300 px-2 py-2">Docа</th>
-                  <th className="border border-slate-300 px-2 py-2">Hor. previsto</th>
-                  <th className="border border-sky-300 bg-sky-700 px-2 py-2 text-center">Comprador</th>
-                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Conferente</th>
-                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-right">Recebido</th>
-                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-right">Rendimento</th>
-                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Hor. conf.</th>
-                  <th className="border border-slate-300 px-2 py-2 text-right">Delta</th>
-                  <th className="border border-slate-300 px-2 py-2">Situação</th>
-                  <th className="border border-slate-300 px-2 py-2">Observações</th>
-                  <th className="border border-slate-300 px-1.5 py-2">Ações</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Data</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Produto</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Previsão</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Docа</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Hor. previsto</th>
+                  <th className="border border-sky-300 bg-sky-700 px-2 py-2 text-center text-[13px]">Comprador</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-center text-[13px]">Conferente</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-center text-[13px]">Recebido</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-center text-[13px]">Rendimento</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-center text-[13px]">Hor. conf.</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Delta</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Situação</th>
+                  <th className="border border-slate-300 px-2 py-2 text-center text-[13px]">Observações</th>
+                  <th className="border border-slate-300 px-1.5 py-2 text-center text-[13px]">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1260,20 +1260,26 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       const dateLabel = isoDate(it.launch.referenceDate).split('-').reverse().join('/');
                       return (
                         <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/40">
-                          <td className="border border-slate-200 p-1.5 text-xs font-semibold whitespace-nowrap">{dateLabel}</td>
-                          <td className="border border-slate-200 p-1.5 font-medium text-sm whitespace-normal break-words leading-snug" title={it.productName ?? ''}>{it.productName}</td>
+                          <td className="border border-slate-200 p-1.5 text-center text-xs font-semibold whitespace-nowrap">{dateLabel}</td>
+                          <td className="border border-slate-200 p-1.5 text-center align-middle">
+                            <span className="block max-w-full truncate text-xs font-bold text-slate-800" title={it.productName ?? ''}>{it.productName}</span>
+                          </td>
                           <td className="border border-slate-200 p-1.5 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
-                          <td className="border border-slate-200 p-1.5 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
-                          <td className="border border-slate-200 p-1.5 text-xs font-semibold text-sky-700 whitespace-nowrap">{it.forecastTime ?? '—'}</td>
-                          <td className="border border-sky-100 p-1.5 text-center text-sm whitespace-normal break-words" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
-                          <td className="border border-emerald-100 p-1.5 align-middle">
+                          <td className="border border-slate-200 p-1.5 text-center align-middle">
+                            <span className="block max-w-full truncate text-xs font-semibold text-slate-700" title={it.dockName || it.launch.dockName || ''}>{it.dockName || it.launch.dockName || '—'}</span>
+                          </td>
+                          <td className="border border-slate-200 p-1.5 text-center text-xs font-semibold text-sky-700 whitespace-nowrap">{it.forecastTime ?? '—'}</td>
+                          <td className="border border-sky-100 p-1.5 text-center align-middle">
+                            <span className="block max-w-full truncate text-xs font-bold text-sky-800" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</span>
+                          </td>
+                          <td className="border border-emerald-100 p-1.5 text-center align-middle">
                             {receivedItem ? (
-                              <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
+                              <span className="block max-w-full truncate text-xs font-bold text-emerald-800" title={it.conferenteName || it.launch.conferenteName || ''}>{it.conferenteName || it.launch.conferenteName || '—'}</span>
                             ) : (
                               <select
                                 value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
                                 onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
-                                className="input !h-9 !text-sm !px-2 w-full"
+                                className="input !h-9 !text-xs !px-1 w-full"
                                 title="Somente conferentes cadastrados"
                               >
                                 <option value="">Selecione...</option>
@@ -1291,7 +1297,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           <td className="border border-emerald-100 p-1.5 text-right align-middle">
                             <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           </td>
-                          <td className="border border-emerald-100 p-1.5 text-sm font-semibold tabular-nums text-emerald-700 whitespace-nowrap">{it.entryTime ?? '—'}</td>
+                          <td className="border border-emerald-100 p-1.5 text-center text-sm font-semibold tabular-nums text-emerald-700 whitespace-nowrap">{it.entryTime ?? '—'}</td>
                           <td className={clsx('border border-slate-200 p-1.5 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
                           <td className="border border-slate-200 p-1.5 text-center">
                             <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
@@ -1303,7 +1309,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                               value={d.notes}
                               onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
                               placeholder="banana para extra 15 kg sem cortes"
-                              className="input !h-9 !text-sm !px-2 w-full"
+                              className="input !h-9 !text-xs !px-2 w-full"
                               title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
                             />
                           </td>
