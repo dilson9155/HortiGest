@@ -19,7 +19,6 @@ import { api, errorMessage } from '../lib/api';
 import { downloadReport, type ReportFormat } from '../lib/report-download';
 import { brNum, isoDate, todayISO } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
-import { useSidebarCollapsed } from '../contexts/SidebarContext';
 import { useToast } from '../hooks/useToast';
 import { Badge, Button, Input, SectionCard, Select, Spinner } from '../components/UI';
 
@@ -122,7 +121,6 @@ function dateBR(d: unknown) {
 export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
   const config = HISTORY_CONFIG[mode];
   const { can } = useAuth();
-  const sidebarCollapsed = useSidebarCollapsed();
   const { toast } = useToast();
   const [filters, setFilters] = useState(emptyFilters);
   const [products, setProducts] = useState<Named[]>([]);
@@ -349,22 +347,22 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
         ) : (
           <>
             <div className="hidden xl:block overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[1900px] table-fixed text-sm">
+              <table className="w-full table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[105px]" />
-                  <col className="w-[120px]" />
-                  <col className={sidebarCollapsed ? 'w-[300px]' : 'w-[210px]'} />
-                  <col className={sidebarCollapsed ? 'w-[260px]' : 'w-[190px]'} />
-                  <col className="w-[95px]" />
-                  <col className="w-[95px]" />
-                  <col className="w-[100px]" />
-                  <col className="w-[90px]" />
-                  <col className="w-[110px]" />
-                  <col className="w-[150px]" />
-                  <col className={sidebarCollapsed ? 'w-[230px]' : 'w-[150px]'} />
-                  <col className={sidebarCollapsed ? 'w-[400px]' : 'w-[280px]'} />
-                  <col className="w-[110px]" />
-                  <col className="w-[100px]" />
+                  <col className="w-[6%]" />   {/* Data */}
+                  <col className="w-[7%]" />   {/* Horários */}
+                  <col className="w-[12%]" />  {/* Produto */}
+                  <col className="w-[11%]" />  {/* Fornecedor */}
+                  <col className="w-[5%]" />   {/* Previsão */}
+                  <col className="w-[5%]" />   {/* Recebido */}
+                  <col className="w-[5%]" />   {/* Rendimento */}
+                  <col className="w-[4%]" />   {/* Delta */}
+                  <col className="w-[6%]" />   {/* Docа */}
+                  <col className="w-[7%]" />   {/* Conferente */}
+                  <col className="w-[8%]" />   {/* Comprador */}
+                  <col className="w-[15%]" />  {/* Observações */}
+                  <col className="w-[5%]" />   {/* Situação */}
+                  <col className="w-[4%]" />   {/* Ações */}
                 </colgroup>
                 <thead className="text-left text-xs font-semibold text-white bg-gradient-to-r from-emerald-700 to-brand-600">
                   <tr>
@@ -378,7 +376,7 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                     <th className="py-3 px-3 text-right align-middle">Delta</th>
                     <th className="py-3 px-3 align-middle">Docа</th>
                     <th className="py-3 px-3 align-middle">Conferente</th>
-                    <th className={clsx('py-3 px-3 align-middle', sidebarCollapsed && 'text-center')}>Comprador</th>
+                    <th className="py-3 px-3 align-middle text-center">Comprador</th>
                     <th className="py-3 px-3 align-middle">Observações</th>
                     <th className="py-3 px-3 align-middle">Situação</th>
                     <th className="py-3 px-3 text-right align-middle">Ações</th>
@@ -400,7 +398,7 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                       <td className={clsx('py-3 px-3 align-top text-right font-bold whitespace-normal break-words', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</td>
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.dockName}</td>
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.conferenteName}</td>
-                      <td className={clsx('py-3 px-3 align-top text-slate-600 whitespace-normal break-words', sidebarCollapsed && 'text-center')}>{it.compradorName}</td>
+                      <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words text-center">{it.compradorName}</td>
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words" title={it.notes ?? ''}>{it.notes ?? '—'}</td>
                       <td className="py-3 px-3 align-top text-center">
                         <span className={clsx(

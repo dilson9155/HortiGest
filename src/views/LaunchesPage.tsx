@@ -25,7 +25,6 @@ import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { brNum, isoDate, todayISO } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
-import { useSidebarCollapsed } from '../contexts/SidebarContext';
 import { useToast } from '../hooks/useToast';
 import { Input, Select, Button, Spinner, ConfirmDialog, Badge } from '../components/UI';
 import SearchSelect from '../components/SearchSelect';
@@ -177,7 +176,6 @@ export type LaunchMode = 'buyers' | 'reviewers';
 
 export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
   const { can, loading: loadingAuth } = useAuth();
-  const sidebarCollapsed = useSidebarCollapsed();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const editParam = searchParams.get('edit');
@@ -783,12 +781,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   // Ao abrir pelo histórico, mostra também os campos do conferente para edição completa.
   const showFullEdit = !!editingLaunchId;
 
-  // Com o menu recolhido, as colunas mais usadas ganham espaço e observações fica a maior.
-  const productCol = sidebarCollapsed ? 'min-w-[300px]' : 'min-w-[220px]';
-  const supplierCol = sidebarCollapsed ? 'min-w-[260px]' : 'min-w-[180px]';
-  const buyerCol = sidebarCollapsed ? 'min-w-[230px] text-center' : 'min-w-[150px] text-left';
-  const buyerInputAlign = sidebarCollapsed ? '!text-center' : '';
-  const notesCol = sidebarCollapsed ? 'min-w-[400px]' : 'min-w-[180px]';
+  // Larguras percentuais: todas as colunas cabem na largura disponível, sem scroll horizontal.
+  const buyerCol = 'text-center';
+  const buyerInputAlign = '!text-center';
 
   if (!loadingAuth && !canView) {
     return (
@@ -897,29 +892,60 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </p>
         </div>
 
-        {/* Tabela estilo planilha — todas as colunas visíveis, edição direta. */}
+        {/* Tabela estilo planilha — larguras percentuais: nenhuma coluna fica escondida. */}
         <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
-          <table className="w-full border-collapse text-sm">
+          <table className={clsx('w-full border-collapse text-sm table-fixed', showFullEdit ? 'min-w-[1200px] lg:min-w-0' : 'min-w-[900px] lg:min-w-0')}>
+            <colgroup>
+              {showFullEdit ? (
+                <>
+                  <col className="w-[11%]" />  {/* Produto */}
+                  <col className="w-[9%]" />   {/* Fornecedor */}
+                  <col className="w-[8%]" />   {/* Comprador */}
+                  <col className="w-[6%]" />   {/* Hor. previsto */}
+                  <col className="w-[6%]" />   {/* Docа */}
+                  <col className="w-[5%]" />   {/* Previsão */}
+                  <col className="w-[8%]" />   {/* Conferente */}
+                  <col className="w-[6%]" />   {/* Hor. conf. */}
+                  <col className="w-[6%]" />   {/* Recebido */}
+                  <col className="w-[6%]" />   {/* Rendimento */}
+                  <col className="w-[4%]" />   {/* Delta */}
+                  <col className="w-[6%]" />   {/* Situação */}
+                  <col className="w-[15%]" />  {/* Observações */}
+                  <col className="w-[4%]" />   {/* Ações */}
+                </>
+              ) : (
+                <>
+                  <col className="w-[18%]" />  {/* Produto */}
+                  <col className="w-[15%]" />  {/* Fornecedor */}
+                  <col className="w-[14%]" />  {/* Comprador */}
+                  <col className="w-[8%]" />   {/* Hor. previsto */}
+                  <col className="w-[9%]" />   {/* Docа */}
+                  <col className="w-[7%]" />   {/* Previsão */}
+                  <col className="w-[22%]" />  {/* Observações */}
+                  <col className="w-[7%]" />   {/* Ações */}
+                </>
+              )}
+            </colgroup>
             <thead className="sticky top-0 z-10">
               <tr className="text-xs font-semibold text-white bg-slate-700">
-                <th className={clsx('border border-slate-300 px-2 py-2 text-center text-[15px]', productCol)}>Produto</th>
-                <th className={clsx('border border-slate-300 px-2 py-2 text-center text-[15px]', supplierCol)}>Fornecedor</th>
+                <th className="border border-slate-300 px-2 py-2 text-center text-[15px]">Produto</th>
+                <th className="border border-slate-300 px-2 py-2 text-center text-[15px]">Fornecedor</th>
                 <th className={clsx('border border-sky-300 bg-sky-700 px-2 py-2', buyerCol)}>Comprador</th>
-                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[100px]">Hor. previsto</th>
-                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[110px]">Docа</th>
-                <th className="border border-sky-300 bg-sky-700 px-2 py-2 min-w-[85px]">Previsão</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2">Hor. previsto</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2">Docа</th>
+                <th className="border border-sky-300 bg-sky-700 px-2 py-2">Previsão</th>
                 {showFullEdit && (
                   <>
-                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-left min-w-[150px]">Conferente</th>
-                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[100px]">Hor. conf. (auto)</th>
-                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[85px]">Recebido</th>
-                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 min-w-[85px]">Rendimento</th>
-                    <th className="border border-slate-300 px-2 py-2 min-w-[70px]">Delta</th>
-                    <th className="border border-slate-300 px-2 py-2 min-w-[100px]">Situação</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-left">Conferente</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Hor. conf. (auto)</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Recebido</th>
+                    <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Rendimento</th>
+                    <th className="border border-slate-300 px-2 py-2">Delta</th>
+                    <th className="border border-slate-300 px-2 py-2">Situação</th>
                   </>
                 )}
-                <th className={clsx('border border-slate-300 px-2 py-2', notesCol)}>Observações</th>
-                <th className="border border-slate-300 px-1.5 py-2 w-20">Ações</th>
+                <th className="border border-slate-300 px-2 py-2">Observações</th>
+                <th className="border border-slate-300 px-1.5 py-2">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1039,7 +1065,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         </td>
                       </>
                     )}
-                    <td className={clsx('border border-slate-200 p-1.5 align-middle', notesCol)}>
+                    <td className="border border-slate-200 p-1.5 align-middle">
                       <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="Opcional" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
                     </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
@@ -1160,11 +1186,27 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         </div>
 
         <div className="hidden xl:block overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-base">
+          <table className="w-full text-base table-fixed">
+            <colgroup>
+              <col className="w-[6%]" />   {/* Data */}
+              <col className="w-[12%]" />  {/* Produto */}
+              <col className="w-[5%]" />   {/* Previsão */}
+              <col className="w-[6%]" />   {/* Docа */}
+              <col className="w-[5%]" />   {/* Hor. prev. */}
+              <col className="w-[9%]" />   {/* Comprador */}
+              <col className="w-[9%]" />   {/* Conferente */}
+              <col className="w-[5%]" />   {/* Recebido */}
+              <col className="w-[5%]" />   {/* Rendimento */}
+              <col className="w-[5%]" />   {/* Hor. conf. */}
+              <col className="w-[4%]" />   {/* Delta */}
+              <col className="w-[5%]" />   {/* Situação */}
+              <col className="w-[20%]" />  {/* Observações */}
+              <col className="w-[4%]" />   {/* Ações */}
+            </colgroup>
             <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
               <tr className="border-b border-slate-200">
                 <th className="py-3 px-3">Data</th>
-                <th className={clsx('py-3 px-3', productCol)}>Produto</th>
+                <th className="py-3 px-3">Produto</th>
                 <th className="py-3 px-3 text-right">Previsão</th>
                 <th className="py-3 px-3">Docа</th>
                 <th className="py-3 px-3">Hor. prev.</th>
@@ -1175,7 +1217,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                 <th className="py-3 px-3">Hor. conf.</th>
                 <th className="py-3 px-3 text-right">Delta</th>
                 <th className="py-3 px-3">Situação</th>
-                <th className={clsx('py-3 px-3', notesCol)}>Observações</th>
+                <th className="py-3 px-3">Observações</th>
                 <th className="py-3 px-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -1194,11 +1236,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     return (
                       <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
                         <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                        <td className={clsx('py-3 px-3 font-medium text-sm whitespace-normal break-words leading-snug', productCol, sidebarCollapsed ? 'max-w-[420px]' : 'max-w-[320px]')} title={it.productName ?? ''}>{it.productName}</td>
+                        <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words leading-snug" title={it.productName ?? ''}>{it.productName}</td>
                         <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
                         <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
                         <td className="py-3 px-3 text-xs whitespace-nowrap"><b className="text-sky-700">{it.forecastTime ?? '—'}</b></td>
-                        <td className={clsx('py-3 px-3 text-slate-600 text-sm whitespace-normal break-words', sidebarCollapsed ? 'min-w-[230px] text-center' : 'min-w-[140px]')} title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
+                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words text-center" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
                         <td className="py-3 px-3 min-w-[150px]">
                           {receivedItem ? (
                             <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
@@ -1240,7 +1282,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             {receivedItem ? 'Recebido' : 'Previsão'}
                           </span>
                         </td>
-                        <td className={clsx('py-3 px-3', notesCol)}>
+                        <td className="py-3 px-3">
                           <input
                             value={d.notes}
                             onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
