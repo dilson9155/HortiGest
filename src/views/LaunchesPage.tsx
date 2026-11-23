@@ -643,15 +643,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     });
   }
 
-  function InfoTile({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-    return (
-      <div className={clsx('rounded-lg border border-slate-200 bg-white px-3 py-2', className)}>
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-        <div className="mt-1 min-h-[24px] text-sm text-slate-800 break-words leading-snug">{children}</div>
-      </div>
-    );
-  }
-
   function SupplierGroupHeader({ group }: { group: { key: string; name: string; items: any[]; totalForecast: number } }) {
     const collapsed = collapsedSuppliers.has(group.key);
     return (
@@ -1217,112 +1208,136 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             {loadingLists && <Spinner />}
           </div>
 
-          {/* Lista agrupada por fornecedor, com um cartão organizado por item. */}
-          <div className="space-y-4">
-            {pendingBySupplier.map((group) => (
-              <div key={group.key} className="rounded-xl border border-slate-200 overflow-hidden">
-                <SupplierGroupHeader group={group} />
-                {!collapsedSuppliers.has(group.key) && (
-                  <div className="divide-y divide-slate-100">
-                    {group.items.map((it: any) => {
+          {/* Tabela única, igual à dos compradores: todas as colunas visíveis e edição direta. */}
+          <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+            <table className="w-full table-fixed border-collapse text-sm">
+              <colgroup>
+                <col className="w-[7%]" />   {/* Data */}
+                <col className="w-[10%]" />  {/* Produto */}
+                <col className="w-[5%]" />   {/* Previsão */}
+                <col className="w-[5%]" />   {/* Docа */}
+                <col className="w-[4%]" />   {/* Hor. previsto */}
+                <col className="w-[6%]" />   {/* Comprador */}
+                <col className="w-[6%]" />   {/* Conferente */}
+                <col className="w-[5%]" />   {/* Recebido */}
+                <col className="w-[5%]" />   {/* Rendimento */}
+                <col className="w-[4%]" />   {/* Hor. conf. */}
+                <col className="w-[4%]" />   {/* Delta */}
+                <col className="w-[5%]" />   {/* Situação */}
+                <col className="w-[28%]" />  {/* Observações */}
+                <col className="w-[6%]" />   {/* Ações */}
+              </colgroup>
+              <thead className="sticky top-0 z-10">
+                <tr className="text-xs font-semibold text-white bg-slate-700">
+                  <th className="border border-slate-300 px-2 py-2">Data</th>
+                  <th className="border border-slate-300 px-2 py-2">Produto</th>
+                  <th className="border border-slate-300 px-2 py-2 text-right">Previsão</th>
+                  <th className="border border-slate-300 px-2 py-2">Docа</th>
+                  <th className="border border-slate-300 px-2 py-2">Hor. previsto</th>
+                  <th className="border border-sky-300 bg-sky-700 px-2 py-2 text-center">Comprador</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Conferente</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-right">Recebido</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2 text-right">Rendimento</th>
+                  <th className="border border-emerald-300 bg-emerald-700 px-2 py-2">Hor. conf.</th>
+                  <th className="border border-slate-300 px-2 py-2 text-right">Delta</th>
+                  <th className="border border-slate-300 px-2 py-2">Situação</th>
+                  <th className="border border-slate-300 px-2 py-2">Observações</th>
+                  <th className="border border-slate-300 px-1.5 py-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingBySupplier.map((group) => (
+                  <Fragment key={group.key}>
+                    <tr className="bg-slate-50">
+                      <td colSpan={14} className="p-0 border-b-2 border-brand-100">
+                        <SupplierGroupHeader group={group} />
+                      </td>
+                    </tr>
+                    {!collapsedSuppliers.has(group.key) && group.items.map((it: any) => {
                       const d = draftFor(it);
                       const receivedItem = it.status === 'RECEBIDO';
                       const diff = deltaOf(it.forecast, it.received);
                       const dateLabel = isoDate(it.launch.referenceDate).split('-').reverse().join('/');
                       return (
-                        <div key={it.id} className="p-4 sm:p-5 bg-white">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-base font-bold text-slate-900 break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
-                              <div className="mt-1 text-xs text-slate-500">{dateLabel} · Previsão: {brNum(it.forecast, 0)}</div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
-                                {receivedItem ? 'Recebido' : 'Previsão'}
-                              </span>
-                              <div className="flex gap-1">
-                                {canEdit && !receivedItem && (
-                                  <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>
-                                )}
-                                {canEdit && receivedItem && (
-                                  <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>
-                                )}
-                                {canEdit && (
-                                  <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>
-                                )}
-                                {canDelete && (
-                                  <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <InfoTile label="Comprador">{it.compradorName || it.launch.compradorName || '—'}</InfoTile>
-                            <InfoTile label="Docа">{it.dockName || it.launch.dockName || '—'}</InfoTile>
-                            <InfoTile label="Hor. previsto"><span className="font-semibold text-sky-700">{it.forecastTime ?? '—'}</span></InfoTile>
-                            <InfoTile label="Conferente">
-                              {receivedItem ? (
-                                <span>{it.conferenteName || it.launch.conferenteName || '—'}</span>
-                              ) : (
-                                <select
-                                  value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
-                                  onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
-                                  className="input !h-9 !text-sm !px-2 w-full"
-                                  title="Somente conferentes cadastrados"
-                                >
-                                  <option value="">Selecione...</option>
-                                  {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                              )}
-                            </InfoTile>
-                          </div>
-
-                          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <InfoTile label="Previsão"><span className="font-bold text-blue-700">{brNum(it.forecast, 0)}</span></InfoTile>
-                            <InfoTile label="Recebido">
-                              {receivedItem ? (
-                                <b className="text-emerald-700">{brNum(it.received, 0)}</b>
-                              ) : (
-                                <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                              )}
-                            </InfoTile>
-                            <InfoTile label="Rendimento">
-                              <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                            </InfoTile>
-                            <InfoTile label="Hor. conferência"><span className="font-semibold text-emerald-700">{it.entryTime ?? '—'}</span></InfoTile>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                            <span className="text-xs text-slate-500">Diferença entre previsão e recebido</span>
-                            <span className={clsx('text-sm font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>
-                              {receivedItem ? deltaLabel(diff) : '—'}
+                        <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/40">
+                          <td className="border border-slate-200 p-1.5 text-xs font-semibold whitespace-nowrap">{dateLabel}</td>
+                          <td className="border border-slate-200 p-1.5 font-medium text-sm whitespace-normal break-words leading-snug" title={it.productName ?? ''}>{it.productName}</td>
+                          <td className="border border-slate-200 p-1.5 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
+                          <td className="border border-slate-200 p-1.5 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
+                          <td className="border border-slate-200 p-1.5 text-xs font-semibold text-sky-700 whitespace-nowrap">{it.forecastTime ?? '—'}</td>
+                          <td className="border border-sky-100 p-1.5 text-center text-sm whitespace-normal break-words" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
+                          <td className="border border-emerald-100 p-1.5 align-middle">
+                            {receivedItem ? (
+                              <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
+                            ) : (
+                              <select
+                                value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
+                                onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
+                                className="input !h-9 !text-sm !px-2 w-full"
+                                title="Somente conferentes cadastrados"
+                              >
+                                <option value="">Selecione...</option>
+                                {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              </select>
+                            )}
+                          </td>
+                          <td className="border border-emerald-100 p-1.5 text-right align-middle">
+                            {receivedItem ? (
+                              <b className="text-emerald-700">{brNum(it.received, 0)}</b>
+                            ) : (
+                              <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            )}
+                          </td>
+                          <td className="border border-emerald-100 p-1.5 text-right align-middle">
+                            <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          </td>
+                          <td className="border border-emerald-100 p-1.5 text-sm font-semibold tabular-nums text-emerald-700 whitespace-nowrap">{it.entryTime ?? '—'}</td>
+                          <td className={clsx('border border-slate-200 p-1.5 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
+                          <td className="border border-slate-200 p-1.5 text-center">
+                            <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
+                              {receivedItem ? 'Recebido' : 'Previsão'}
                             </span>
-                          </div>
-
-                          <div className="mt-3">
-                            <label className="label !mb-1">Observações deste item</label>
+                          </td>
+                          <td className="border border-slate-200 p-1.5 align-middle">
                             <input
                               value={d.notes}
                               onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
                               placeholder="banana para extra 15 kg sem cortes"
-                              className="input !h-10 !text-sm"
+                              className="input !h-9 !text-sm !px-2 w-full"
                               title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
                             />
-                          </div>
-                        </div>
+                          </td>
+                          <td className="border border-slate-200 p-1.5 text-center align-middle">
+                            <div className="flex items-center justify-center gap-1">
+                              {canEdit && !receivedItem && (
+                                <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-1.5 text-brand-700 hover:bg-brand-50 rounded disabled:opacity-30" title="Salvar recebimento"><Save size={16} /></button>
+                              )}
+                              {canEdit && receivedItem && (
+                                <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-1.5 text-purple-700 hover:bg-purple-50 rounded disabled:opacity-30" title="Salvar rendimento e observação"><Save size={16} /></button>
+                              )}
+                              {canEdit && (
+                                <button onClick={() => openLaunchEditor(it.launch)} className="p-1.5 text-brand-700 hover:bg-brand-50 rounded" title="Editar"><Pencil size={16} /></button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => setConfirmDelId(it.launch.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Excluir"><Trash2 size={16} /></button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
+                  </Fragment>
+                ))}
+                {pendingBySupplier.length === 0 && (
+                  <tr>
+                    <td colSpan={14} className="p-10 text-center text-slate-500">
+                      <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
+                      <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
+                    </td>
+                  </tr>
                 )}
-              </div>
-            ))}
-            {pendingBySupplier.length === 0 && (
-              <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
-                <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
-                <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
-              </div>
-            )}
+              </tbody>
+            </table>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
