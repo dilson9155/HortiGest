@@ -174,6 +174,17 @@ function deltaLabel(v: number) {
 
 export type LaunchMode = 'buyers' | 'reviewers';
 
+const EMPTY_LAUNCH_FILTERS = {
+  startDate: '',
+  endDate: '',
+  q: '',
+  dockId: '',
+  productId: '',
+  supplierId: '',
+  compradorId: '',
+  conferenteId: '',
+};
+
 export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode }) {
   const { can, loading: loadingAuth } = useAuth();
   const { toast } = useToast();
@@ -223,16 +234,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const [pending, setPending] = useState<any[]>([]);
   const [received, setReceived] = useState<any[]>([]);
   const [collapsedSuppliers, setCollapsedSuppliers] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    q: '',
-    dockId: '',
-    productId: '',
-    supplierId: '',
-    compradorId: '',
-    conferenteId: '',
-  });
+  const [filters, setFilters] = useState({ ...EMPTY_LAUNCH_FILTERS });
 
   const [loading, setLoading] = useState(false);
   const [loadingLists, setLoadingLists] = useState(false);
@@ -639,6 +641,15 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       else next.add(key);
       return next;
     });
+  }
+
+  function InfoTile({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+    return (
+      <div className={clsx('rounded-lg border border-slate-200 bg-white px-3 py-2', className)}>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+        <div className="mt-1 min-h-[24px] text-sm text-slate-800 break-words leading-snug">{children}</div>
+      </div>
+    );
   }
 
   function SupplierGroupHeader({ group }: { group: { key: string; name: string; items: any[]; totalForecast: number } }) {
@@ -1105,21 +1116,20 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
       {/* ===================== MÓDULO 2 — ENTRADAS / PREVISÕES ===================== */}
       {mode === 'reviewers' && (
-      <section className="rounded-2xl bg-white shadow-soft border border-slate-200 p-5 sm:p-7">
-        <header className="mb-5 flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-md">
+      <section className="rounded-2xl bg-white shadow-soft border border-slate-200 overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/70 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-md shrink-0">
               <ListChecks size={24} />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Lançamento conferentes</h2>
-              <p className="text-sm text-slate-600">
-                Tudo que os compradores lançam fica agrupado aqui por fornecedor. Confira o que chegou e salve item por item; o lançamento só vai para o
-                histórico quando todos os itens estiverem conferidos. Depois de salvo, rendimento e observação continuam editáveis pelo disco da linha.
+              <p className="mt-1 text-sm text-slate-600">
+                Confira o que chegou e salve item por item. O grupo vai para o histórico quando todos os itens estiverem conferidos.
               </p>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex flex-wrap gap-2 shrink-0">
             <Button variant="secondary" onClick={loadLists}>
               <RefreshCw size={16} /> Atualizar
             </Button>
@@ -1130,302 +1140,196 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               <History size={18} /> Histórico conferentes <ArrowRight size={17} />
             </Link>
           </div>
-        </header>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-5">
-          <div>
-            <label className="label">De</label>
-            <input type="date" className="input !h-11 !text-base" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Até</label>
-            <input type="date" className="input !h-11 !text-base" value={filters.endDate} onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Produto</label>
-            <Select value={filters.productId} onChange={(e) => setFilters((f) => ({ ...f, productId: e.target.value }))} className="!h-11 !text-base">
-              <option value="">Todos</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className="label">Fornecedor</label>
-            <Select value={filters.supplierId} onChange={(e) => setFilters((f) => ({ ...f, supplierId: e.target.value }))} className="!h-11 !text-base">
-              <option value="">Todos</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className="label">Docа</label>
-            <Select value={filters.dockId} onChange={(e) => setFilters((f) => ({ ...f, dockId: e.target.value }))} className="!h-11 !text-base">
-              <option value="">Todas</option>
-              {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className="label">Comprador</label>
-            <Select value={filters.compradorId} onChange={(e) => setFilters((f) => ({ ...f, compradorId: e.target.value }))} className="!h-11 !text-base">
-              <option value="">Todos</option>
-              {compradores.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className="label">Conferente</label>
-            <Select value={filters.conferenteId} onChange={(e) => setFilters((f) => ({ ...f, conferenteId: e.target.value }))} className="!h-11 !text-base">
-              <option value="">Todos</option>
-              {conferentes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className="label">Buscar</label>
-            <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input className="input !h-11 !text-base pl-11" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="Produto, fornecedor, observação..." />
+        <div className="p-5 sm:p-6 space-y-5">
+          {/* Filtros em painel próprio, com todos os campos alinhados. */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-800">Filtros</h3>
+              <button
+                type="button"
+                onClick={() => setFilters({ ...EMPTY_LAUNCH_FILTERS })}
+                className="text-xs font-semibold text-brand-700 hover:underline"
+              >
+                Limpar filtros
+              </button>
             </div>
-          </div>
-        </div>
-
-        <div className="hidden xl:block overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-base table-fixed">
-            <colgroup>
-              <col className="w-[6%]" />   {/* Data */}
-              <col className="w-[12%]" />  {/* Produto */}
-              <col className="w-[5%]" />   {/* Previsão */}
-              <col className="w-[6%]" />   {/* Docа */}
-              <col className="w-[5%]" />   {/* Hor. prev. */}
-              <col className="w-[9%]" />   {/* Comprador */}
-              <col className="w-[9%]" />   {/* Conferente */}
-              <col className="w-[5%]" />   {/* Recebido */}
-              <col className="w-[5%]" />   {/* Rendimento */}
-              <col className="w-[5%]" />   {/* Hor. conf. */}
-              <col className="w-[4%]" />   {/* Delta */}
-              <col className="w-[5%]" />   {/* Situação */}
-              <col className="w-[20%]" />  {/* Observações */}
-              <col className="w-[4%]" />   {/* Ações */}
-            </colgroup>
-            <thead className="text-left text-sm font-semibold text-white bg-gradient-to-r from-brand-700 to-brand-500">
-              <tr className="border-b border-slate-200">
-                <th className="py-3 px-3">Data</th>
-                <th className="py-3 px-3">Produto</th>
-                <th className="py-3 px-3 text-right">Previsão</th>
-                <th className="py-3 px-3">Docа</th>
-                <th className="py-3 px-3">Hor. prev.</th>
-                <th className={clsx('py-3 px-3', buyerCol)}>Comprador</th>
-                <th className="py-3 px-3">Conferente</th>
-                <th className="py-3 px-3 text-right">Recebido</th>
-                <th className="py-3 px-3 text-right">Rendimento</th>
-                <th className="py-3 px-3">Hor. conf.</th>
-                <th className="py-3 px-3 text-right">Delta</th>
-                <th className="py-3 px-3">Situação</th>
-                <th className="py-3 px-3">Observações</th>
-                <th className="py-3 px-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingBySupplier.map((group) => (
-                <Fragment key={group.key}>
-                  <tr className="bg-slate-50 border-b-2 border-brand-100">
-                    <td colSpan={14} className="p-0">
-                      <SupplierGroupHeader group={group} />
-                    </td>
-                  </tr>
-                  {!collapsedSuppliers.has(group.key) && group.items.map((it: any) => {
-                    const d = draftFor(it);
-                    const receivedItem = it.status === 'RECEBIDO';
-                    const diff = deltaOf(it.forecast, it.received);
-                    return (
-                      <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/60">
-                        <td className="py-3 px-3 font-semibold whitespace-nowrap">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')}</td>
-                        <td className="py-3 px-3 font-medium text-sm whitespace-normal break-words leading-snug" title={it.productName ?? ''}>{it.productName}</td>
-                        <td className="py-3 px-3 text-right font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
-                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words">{it.dockName || it.launch.dockName || '—'}</td>
-                        <td className="py-3 px-3 text-xs whitespace-nowrap"><b className="text-sky-700">{it.forecastTime ?? '—'}</b></td>
-                        <td className="py-3 px-3 text-slate-600 text-sm whitespace-normal break-words text-center" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</td>
-                        <td className="py-3 px-3 min-w-[150px]">
-                          {receivedItem ? (
-                            <span className="text-sm text-slate-700 break-words">{it.conferenteName || it.launch.conferenteName || '—'}</span>
-                          ) : (
-                            <select
-                              value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
-                              onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
-                              className="input !h-9 !text-sm !px-2"
-                              title="Somente conferentes cadastrados"
-                            >
-                              <option value="">Selecione...</option>
-                              {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          {receivedItem ? (
-                            <b className="text-emerald-700">{brNum(it.received, 0)}</b>
-                          ) : (
-                            <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            value={d.rendimento}
-                            placeholder="0"
-                            title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'}
-                            onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })}
-                            className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-sm font-semibold tabular-nums text-emerald-700">{it.entryTime ?? '—'}</td>
-                        <td className={clsx('py-3 px-3 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
-                        <td className="py-3 px-3 text-center">
-                          <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
-                            {receivedItem ? 'Recebido' : 'Previsão'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <input
-                            value={d.notes}
-                            onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
-                            placeholder="Opcional"
-                            className="input !h-9 !text-sm !px-2"
-                            title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="inline-flex gap-1">
-                            {canEdit && !receivedItem && (
-                              <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento deste item">
-                                <Save size={17} />
-                              </button>
-                            )}
-                            {canEdit && receivedItem && (
-                              <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação">
-                                <Save size={17} />
-                              </button>
-                            )}
-                            {canEdit && (
-                              <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar">
-                                <Pencil size={17} />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir lançamento">
-                                <Trash2 size={17} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </Fragment>
-              ))}
-              {pendingBySupplier.length === 0 && (
-                <tr>
-                  <td colSpan={14} className="p-10 text-center text-slate-500">
-                    <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
-                    <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="xl:hidden space-y-4">
-          {pendingBySupplier.map((group) => (
-            <div key={group.key} className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
-              <SupplierGroupHeader group={group} />
-              {!collapsedSuppliers.has(group.key) && (
-                <div className="space-y-3 p-3">
-                  {group.items.map((it: any) => {
-                    const d = draftFor(it);
-                    const receivedItem = it.status === 'RECEBIDO';
-                    const diff = deltaOf(it.forecast, it.received);
-                    return (
-                      <div key={it.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-800 text-sm break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
-                            <div className="text-xs text-slate-500">{isoDate(it.launch.referenceDate).split('-').reverse().join('/')} · Previsão: {brNum(it.forecast, 0)}</div>
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            {canEdit && !receivedItem && <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>}
-                            {canEdit && receivedItem && <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>}
-                            {canEdit && <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>}
-                            {canDelete && <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>}
-                          </div>
-                        </div>
-                        <div className="text-xs text-slate-600 break-words"><b>Comprador:</b> {it.compradorName || it.launch.compradorName || '—'} <b>Doca:</b> {it.dockName || it.launch.dockName || '—'} <b>Prev:</b> {it.forecastTime ?? '—'}</div>
-                        {receivedItem ? (
-                          <div className="grid grid-cols-3 gap-2 rounded-lg bg-white/70 p-2 text-center">
-                            <div><div className="text-[11px] text-slate-500">Recebido</div><div className="font-bold text-emerald-700">{brNum(it.received, 0)}</div></div>
-                            <div>
-                              <label className="text-[11px] text-slate-500">Rendimento</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={d.rendimento}
-                                placeholder="0"
-                                title="Rendimento permanece editável após a conferência"
-                                onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })}
-                                className="input !h-9 !text-sm !px-2 text-center !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              />
-                            </div>
-                            <div><div className="text-[11px] text-slate-500">Hor. conf.</div><div className="font-bold text-emerald-700">{it.entryTime ?? '—'}</div></div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 gap-2 rounded-lg bg-white/70 p-2">
-                            <div>
-                              <label className="label !mb-1">Conferente</label>
-                              <select value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)} onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })} className="input !h-9 !text-sm">
-                                <option value="">Selecione...</option>
-                                {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                              </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input type="number" min="0" step="0.001" label="Recebido" value={d.received} onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="0" className="!h-9 !text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                              <Input type="number" min="0" step="0.001" label="Rendimento" value={d.rendimento} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="0" className="!h-9 !text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between text-xs">
-                          <span className={clsx('inline-flex rounded px-2 py-1 font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>{receivedItem ? 'Recebido' : 'Previsão'}</span>
-                          <span className={clsx('font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</span>
-                        </div>
-                        <div>
-                          <label className="label !mb-1">Observações deste item</label>
-                          <input
-                            value={d.notes}
-                            onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
-                            placeholder="Opcional"
-                            className="input !h-9 !text-sm"
-                            title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="label">De</label>
+                <input type="date" className="input !h-10 !text-sm" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">Até</label>
+                <input type="date" className="input !h-10 !text-sm" value={filters.endDate} onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">Produto</label>
+                <Select value={filters.productId} onChange={(e) => setFilters((f) => ({ ...f, productId: e.target.value }))} className="!h-10 !text-sm">
+                  <option value="">Todos</option>
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="label">Fornecedor</label>
+                <Select value={filters.supplierId} onChange={(e) => setFilters((f) => ({ ...f, supplierId: e.target.value }))} className="!h-10 !text-sm">
+                  <option value="">Todos</option>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="label">Docа</label>
+                <Select value={filters.dockId} onChange={(e) => setFilters((f) => ({ ...f, dockId: e.target.value }))} className="!h-10 !text-sm">
+                  <option value="">Todas</option>
+                  {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="label">Comprador</label>
+                <Select value={filters.compradorId} onChange={(e) => setFilters((f) => ({ ...f, compradorId: e.target.value }))} className="!h-10 !text-sm">
+                  <option value="">Todos</option>
+                  {compradores.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="label">Conferente</label>
+                <Select value={filters.conferenteId} onChange={(e) => setFilters((f) => ({ ...f, conferenteId: e.target.value }))} className="!h-10 !text-sm">
+                  <option value="">Todos</option>
+                  {conferentes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="label">Buscar</label>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input className="input !h-10 !text-sm pl-10" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="Produto, fornecedor, observação..." />
                 </div>
-              )}
+              </div>
             </div>
-          ))}
-          {pendingBySupplier.length === 0 && (
-            <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
-              Nenhuma entrada pendente para os filtros informados.
-            </div>
-          )}
-        </div>
+          </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-          <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
-          <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
-          <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
-          <Link href="/historico-lancamentos-conferentes" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-            Abrir histórico conferentes <ArrowRight size={15} />
-          </Link>
-          {loadingLists && <Spinner />}
+          {/* Resumo antes da lista. */}
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
+            <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
+            <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
+            {loadingLists && <Spinner />}
+          </div>
+
+          {/* Lista agrupada por fornecedor, com um cartão organizado por item. */}
+          <div className="space-y-4">
+            {pendingBySupplier.map((group) => (
+              <div key={group.key} className="rounded-xl border border-slate-200 overflow-hidden">
+                <SupplierGroupHeader group={group} />
+                {!collapsedSuppliers.has(group.key) && (
+                  <div className="divide-y divide-slate-100">
+                    {group.items.map((it: any) => {
+                      const d = draftFor(it);
+                      const receivedItem = it.status === 'RECEBIDO';
+                      const diff = deltaOf(it.forecast, it.received);
+                      const dateLabel = isoDate(it.launch.referenceDate).split('-').reverse().join('/');
+                      return (
+                        <div key={it.id} className="p-4 sm:p-5 bg-white">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-base font-bold text-slate-900 break-words leading-snug" title={it.productName ?? ''}>{it.productName}</div>
+                              <div className="mt-1 text-xs text-slate-500">{dateLabel} · Previsão: {brNum(it.forecast, 0)}</div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={clsx('inline-flex rounded px-2 py-1 text-xs font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500')}>
+                                {receivedItem ? 'Recebido' : 'Previsão'}
+                              </span>
+                              <div className="flex gap-1">
+                                {canEdit && !receivedItem && (
+                                  <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>
+                                )}
+                                {canEdit && receivedItem && (
+                                  <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>
+                                )}
+                                {canEdit && (
+                                  <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>
+                                )}
+                                {canDelete && (
+                                  <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <InfoTile label="Comprador">{it.compradorName || it.launch.compradorName || '—'}</InfoTile>
+                            <InfoTile label="Docа">{it.dockName || it.launch.dockName || '—'}</InfoTile>
+                            <InfoTile label="Hor. previsto"><span className="font-semibold text-sky-700">{it.forecastTime ?? '—'}</span></InfoTile>
+                            <InfoTile label="Conferente">
+                              {receivedItem ? (
+                                <span>{it.conferenteName || it.launch.conferenteName || '—'}</span>
+                              ) : (
+                                <select
+                                  value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
+                                  onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
+                                  className="input !h-9 !text-sm !px-2 w-full"
+                                  title="Somente conferentes cadastrados"
+                                >
+                                  <option value="">Selecione...</option>
+                                  {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                              )}
+                            </InfoTile>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <InfoTile label="Previsão"><span className="font-bold text-blue-700">{brNum(it.forecast, 0)}</span></InfoTile>
+                            <InfoTile label="Recebido">
+                              {receivedItem ? (
+                                <b className="text-emerald-700">{brNum(it.received, 0)}</b>
+                              ) : (
+                                <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                              )}
+                            </InfoTile>
+                            <InfoTile label="Rendimento">
+                              <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            </InfoTile>
+                            <InfoTile label="Hor. conferência"><span className="font-semibold text-emerald-700">{it.entryTime ?? '—'}</span></InfoTile>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                            <span className="text-xs text-slate-500">Diferença entre previsão e recebido</span>
+                            <span className={clsx('text-sm font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>
+                              {receivedItem ? deltaLabel(diff) : '—'}
+                            </span>
+                          </div>
+
+                          <div className="mt-3">
+                            <label className="label !mb-1">Observações deste item</label>
+                            <input
+                              value={d.notes}
+                              onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
+                              placeholder="banana para extra 15 kg sem cortes"
+                              className="input !h-10 !text-sm"
+                              title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+            {pendingBySupplier.length === 0 && (
+              <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
+                <ListChecks className="mx-auto mb-2 text-brand-300" size={34} />
+                <p className="text-base">Nenhuma entrada pendente para os filtros informados.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <Link href="/historico-lancamentos-conferentes" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+              Abrir histórico conferentes <ArrowRight size={15} />
+            </Link>
+          </div>
         </div>
       </section>
       )}
