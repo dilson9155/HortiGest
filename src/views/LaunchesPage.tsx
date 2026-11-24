@@ -401,6 +401,12 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     ]);
   }
 
+  // Fornecedor é informado uma vez por grupo; trocar no cabeçalho muda todos os produtos dele.
+  function setSupplierForGroup(indexes: number[], supplierId: string) {
+    setDefaultSupplierId(supplierId);
+    setRows((arr) => arr.map((r, i) => (indexes.includes(i) ? { ...r, supplierId } : r)));
+  }
+
   // Aplica os padrões do topo a todas as linhas já abertas.
   function applyDefaultsToRows() {
     setRows((arr) =>
@@ -998,10 +1004,18 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           {buyerSupplierGroups.map((group) => (
             <div key={group.key} className="rounded-xl border border-brand-200 bg-white shadow-sm overflow-hidden">
               <div className="flex items-center justify-between gap-2 border-b-2 border-brand-100 bg-brand-50/70 px-3 py-2.5">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Truck size={18} className="shrink-0 text-brand-700" />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</div>
+                  <div className="min-w-0 flex-1">
+                    <select
+                      value={group.supplierId}
+                      onChange={(e) => setSupplierForGroup(group.indexes, e.target.value)}
+                      className="input !h-9 !text-sm !px-2 w-full font-bold text-brand-800"
+                      title="Fornecedor deste grupo"
+                    >
+                      <option value="">Selecione o fornecedor...</option>
+                      {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
                     <div className="text-[11px] font-semibold text-slate-600">{group.indexes.length} produto(s)</div>
                   </div>
                 </div>
@@ -1028,21 +1042,12 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Produto</label>
-                      <select value={r.productId} onChange={(e) => setRow(idx, { productId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
-                        <option value="">Selecione...</option>
-                        {productOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Fornecedor</label>
-                      <select value={r.supplierId} onChange={(e) => setRow(idx, { supplierId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
-                        <option value="">Selecione...</option>
-                        {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-bold text-slate-700">Produto</label>
+                    <select value={r.productId} onChange={(e) => setRow(idx, { productId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
+                      <option value="">Selecione...</option>
+                      {productOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1156,38 +1161,35 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <colgroup>
               {showFullEdit ? (
                 <>
-                  <col className="w-[12%]" />  {/* Produto */}
-                  <col className="w-[9%]" />   {/* Fornecedor */}
-                  <col className="w-[8%]" />   {/* Comprador */}
+                  <col className="w-[14%]" />  {/* Produto */}
+                  <col className="w-[9%]" />   {/* Comprador */}
                   <col className="w-[5%]" />   {/* Hor. previsto */}
                   <col className="w-[6%]" />   {/* Docа */}
                   <col className="w-[4%]" />   {/* Previsão */}
-                  <col className="w-[7%]" />   {/* Conferente */}
+                  <col className="w-[8%]" />   {/* Conferente */}
                   <col className="w-[5%]" />   {/* Hor. conf. */}
                   <col className="w-[5%]" />   {/* Recebido */}
                   <col className="w-[5%]" />   {/* Rendimento */}
                   <col className="w-[3%]" />   {/* Delta */}
                   <col className="w-[5%]" />   {/* Situação */}
-                  <col className="w-[22%]" />  {/* Observações */}
-                  <col className="w-[4%]" />   {/* Ações */}
+                  <col className="w-[26%]" />  {/* Observações */}
+                  <col className="w-[5%]" />   {/* Ações */}
                 </>
               ) : (
                 <>
-                  <col className="w-[16%]" />  {/* Produto */}
-                  <col className="w-[13%]" />  {/* Fornecedor */}
-                  <col className="w-[12%]" />  {/* Comprador */}
-                  <col className="w-[7%]" />   {/* Hor. previsto */}
-                  <col className="w-[8%]" />   {/* Docа */}
-                  <col className="w-[6%]" />   {/* Previsão */}
-                  <col className="w-[32%]" />  {/* Observações */}
-                  <col className="w-[6%]" />   {/* Ações */}
+                  <col className="w-[20%]" />  {/* Produto */}
+                  <col className="w-[15%]" />  {/* Comprador */}
+                  <col className="w-[8%]" />   {/* Hor. previsto */}
+                  <col className="w-[9%]" />   {/* Docа */}
+                  <col className="w-[7%]" />   {/* Previsão */}
+                  <col className="w-[34%]" />  {/* Observações */}
+                  <col className="w-[7%]" />   {/* Ações */}
                 </>
               )}
             </colgroup>
             <thead className="sticky top-0 z-10">
               <tr className="text-xs font-semibold text-white bg-slate-700">
                 <th className="border border-slate-300 px-2 py-2 text-center text-[15px]">Produto</th>
-                <th className="border border-slate-300 px-2 py-2 text-center text-[15px]">Fornecedor</th>
                 <th className={clsx('border border-sky-300 bg-sky-700 px-2 py-2', buyerCol)}>Comprador</th>
                 <th className="border border-sky-300 bg-sky-700 px-2 py-2">Hor. previsto</th>
                 <th className="border border-sky-300 bg-sky-700 px-2 py-2">Docа</th>
@@ -1210,11 +1212,19 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               {buyerSupplierGroups.map((group) => (
                 <Fragment key={group.key}>
                   <tr className="bg-brand-50">
-                    <td colSpan={showFullEdit ? 14 : 8} className="border-b-2 border-brand-200 px-3 py-2">
+                    <td colSpan={showFullEdit ? 13 : 7} className="border-b-2 border-brand-200 px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <Truck size={16} className="shrink-0 text-brand-700" />
-                          <span className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</span>
+                          <select
+                            value={group.supplierId}
+                            onChange={(e) => setSupplierForGroup(group.indexes, e.target.value)}
+                            className="input !h-9 !text-sm !px-2 min-w-[200px] font-bold text-brand-800"
+                            title="Fornecedor deste grupo"
+                          >
+                            <option value="">Selecione o fornecedor...</option>
+                            {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                          </select>
                           <span className="shrink-0 text-xs font-semibold text-slate-600">{group.indexes.length} produto(s)</span>
                         </div>
                         <button type="button" onClick={() => addRow(group.supplierId)} className="inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-800">
@@ -1236,17 +1246,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         value={r.productId}
                         onChange={(id) => setRow(idx, { productId: id })}
                         placeholder="Produto..."
-                        className="[&_input]:!text-center [&_input]:!text-[15px] [&_input]:!font-semibold"
-                      />
-                    </td>
-                    <td className="border border-slate-200 p-1.5 align-middle">
-                      <SearchSelect
-                        compact
-                        icon={<Truck size={16} />}
-                        items={supplierOptions}
-                        value={r.supplierId}
-                        onChange={(id) => setRow(idx, { supplierId: id })}
-                        placeholder="Fornecedor..."
                         className="[&_input]:!text-center [&_input]:!text-[15px] [&_input]:!font-semibold"
                       />
                     </td>
