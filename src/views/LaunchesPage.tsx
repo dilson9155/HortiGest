@@ -338,17 +338,25 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
   const visibleRowIndexes = useMemo(() => {
     const q = quickSearch.trim().toLocaleLowerCase('pt-BR');
-    if (!q) return rows.map((_, idx) => idx);
-    return rows.reduce<number[]>((acc, r, idx) => {
-      const product = productOptions.find((o) => o.id === r.productId)?.label ?? '';
-      const supplier = supplierOptions.find((o) => o.id === r.supplierId)?.label ?? '';
+    const productOf = (idx: number) => productOptions.find((o) => o.id === rows[idx].productId)?.label ?? '';
+    const supplierOf = (idx: number) => supplierOptions.find((o) => o.id === rows[idx].supplierId)?.label ?? '';
+    const matches = (idx: number) => {
+      if (!q) return true;
+      const r = rows[idx];
       const dock = docks.find((d) => d.id === r.dockId)?.name ?? '';
-      const haystack = [product, supplier, r.compradorName, r.conferenteName, dock, r.forecastTime, r.notes]
+      return [productOf(idx), supplierOf(idx), r.compradorName, r.conferenteName, dock, r.forecastTime, r.notes]
         .join(' ')
-        .toLocaleLowerCase('pt-BR');
-      if (haystack.includes(q)) acc.push(idx);
-      return acc;
-    }, []);
+        .toLocaleLowerCase('pt-BR')
+        .includes(q);
+    };
+    return rows
+      .map((_, idx) => idx)
+      .filter(matches)
+      .sort((a, b) =>
+        productOf(a).localeCompare(productOf(b), 'pt-BR', { sensitivity: 'base' }) ||
+        supplierOf(a).localeCompare(supplierOf(b), 'pt-BR', { sensitivity: 'base' }) ||
+        a - b,
+      );
   }, [rows, quickSearch, productOptions, supplierOptions, docks]);
 
   function setRow(idx: number, patch: Partial<Row>) {
