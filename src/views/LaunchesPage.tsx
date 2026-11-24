@@ -33,6 +33,8 @@ type ItemStatus = 'PREVISTO' | 'RECEBIDO';
 
 type Row = {
   _key: string;
+  // Identifica o card/grupo de fornecedor, mesmo antes do fornecedor ser escolhido.
+  groupKey: string;
   launchId: string;
   productId: string;
   supplierId: string;
@@ -51,7 +53,7 @@ type Row = {
   status: ItemStatus;
 };
 
-type RowDefaults = Partial<Pick<Row, 'supplierId' | 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
+type RowDefaults = Partial<Pick<Row, 'groupKey' | 'supplierId' | 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
 
 // Rascunho do conferente por item, mantido enquanto ele confere o grupo.
 type ReceiveDraft = {
@@ -98,9 +100,14 @@ function registryIdByName(list: NamedOption[], name?: string | null) {
   return list.find((x) => x.name?.trim().toLowerCase() === wanted)?.id ?? '';
 }
 
+function newGroupKey() {
+  return `g_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function newRow(defaults: RowDefaults = {}): Row {
   return {
     _key: `r_${Math.random().toString(36).slice(2, 9)}`,
+    groupKey: defaults.groupKey ?? newGroupKey(),
     launchId: '',
     productId: '',
     supplierId: defaults.supplierId ?? '',
@@ -130,6 +137,7 @@ function formSignature(
     h: [header.date, header.notes, header.dockId, header.compradorId, header.conferenteId],
     r: rows.map((r) => [
       r._key.startsWith('r_') ? 'new' : r._key,
+      r.groupKey,
       r.productId, r.supplierId, r.compradorId, r.compradorName,
       r.conferenteId, r.conferenteName, r.dockId, r.forecastTime,
       r.forecast, r.received, r.rendimento, r.entryTime, r.notes, r.status,
@@ -141,6 +149,7 @@ function formSignature(
 function rowFromItem(it: any): Row {
   return {
     _key: it.id,
+    groupKey: it.supplierId ? `saved:${it.supplierId}` : `saved:${it.id}`,
     launchId: it.launchId ?? it.launch?.id ?? '',
     productId: it.productId,
     supplierId: it.supplierId,
@@ -204,7 +213,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const receivingLocked = mode === 'buyers' && !canEditReceiving;
 
   const [date, setDate] = useState(todayISO());
-  const [defaultSupplierId, setDefaultSupplierId] = useState('');
   const [dockId, setDockId] = useState('');
   const [compradorId, setCompradorId] = useState('');
   const [conferenteId, setConferenteId] = useState('');
@@ -360,13 +368,15 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       );
   }, [rows, quickSearch, productOptions, supplierOptions, docks]);
 
-  // Um card por fornecedor: vários produtos entram no mesmo grupo, sem abrir outro card.
+  // Um card por grupo de fornecedor. O groupKey mantém grupos distintos mesmo
+  // quando o fornecedor ainda não foi escolhido.
   const buyerSupplierGroups = useMemo(() => {
     const groups = new Map<string, { key: string; supplierId: string; name: string; indexes: number[] }>();
     for (const idx of visibleRowIndexes) {
-      const supplierId = rows[idx].supplierId || '';
+      const row = rows[idx];
+      const supplierId = row.supplierId || '';
       const name = supplierOptions.find((o) => o.id === supplierId)?.label || 'Fornecedor não selecionado';
-      const key = supplierId || '__sem_fornecedor__';
+      const key = row.groupKey;
       if (!groups.has(key)) groups.set(key, { key, supplierId, name, indexes: [] });
       groups.get(key)!.indexes.push(idx);
     }
@@ -386,12 +396,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     );
   }
 
-  // Novo produto herda o fornecedor escolhido no topo (ou do grupo onde foi adicionado).
-  function addRow(supplierIdOverride?: string) {
+  // Produto sempre entra no grupo onde foi clicado; um novo grupo começa vazio.
+  function addRow(supplierId: string, groupKey = newGroupKey()) {
     setRows((arr) => [
       ...arr,
       newRow({
-        supplierId: supplierIdOverride ?? defaultSupplierId,
+        groupKey,
+        supplierId,
         dockId,
         compradorId,
         compradorName,
@@ -402,9 +413,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   }
 
   // Fornecedor é informado uma vez por grupo; trocar no cabeçalho muda todos os produtos dele.
-  function setSupplierForGroup(indexes: number[], supplierId: string) {
-    setDefaultSupplierId(supplierId);
-    setRows((arr) => arr.map((r, i) => (indexes.includes(i) ? { ...r, supplierId } : r)));
+  function setSupplierForGroup(groupKey: string, supplierId: string) {
+    setRows((arr) => arr.map((r) => (r.groupKey === groupKey ? { ...r, supplierId } : r)));
   }
 
   // Aplica os padrões do topo a todas as linhas já abertas.
@@ -412,7 +422,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     setRows((arr) =>
       arr.map((r) => ({
         ...r,
-        supplierId: defaultSupplierId || r.supplierId,
         dockId: dockId || r.dockId,
         compradorId: compradorId || r.compradorId,
         compradorName: compradorName.trim() || r.compradorName,
@@ -574,7 +583,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   }
 
   function doClear() {
-    setRows([newRow()]);
+    const clearedRows = [newRow()];
+    setRows(clearedRows);
     setNotes('');
     setDockId('');
     setCompradorId('');
@@ -583,7 +593,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     setConferenteName('');
     setEditingLaunchId(null);
     setConfirmClear(false);
-    savedSignatureRef.current = formSignature([newRow()], {
+    savedSignatureRef.current = formSignature(clearedRows, {
       date, notes: '', dockId: '', compradorId: '', conferenteId: '',
     });
   }
@@ -956,18 +966,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           )}
         </div>
 
-        {/* Padrões compactos — preenchem novas linhas; cada item pode ser diferente. */}
+        {/* Padrões compactos — o fornecedor é escolhido uma vez no cabeçalho de cada grupo. */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4">
           <div className="flex flex-wrap items-end gap-2">
             <div className="w-36 shrink-0">
               <Input type="date" label="Data" value={date} onChange={(e) => setDate(e.target.value)} className="!h-9 !text-sm" />
-            </div>
-            <div className="min-w-[180px] flex-1">
-              <label className="label">Fornecedor padrão</label>
-              <Select value={defaultSupplierId} onChange={(e) => setDefaultSupplierId(e.target.value)} className="!h-9 !text-sm">
-                <option value="">Selecione...</option>
-                {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </Select>
             </div>
             <div className="min-w-[150px] flex-1">
               <label className="label">Comprador padrão</label>
@@ -1009,7 +1012,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                   <div className="min-w-0 flex-1">
                     <select
                       value={group.supplierId}
-                      onChange={(e) => setSupplierForGroup(group.indexes, e.target.value)}
+                      onChange={(e) => setSupplierForGroup(group.key, e.target.value)}
                       className="input !h-9 !text-sm !px-2 w-full font-bold text-brand-800"
                       title="Fornecedor deste grupo"
                     >
@@ -1021,7 +1024,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                 </div>
                 <button
                   type="button"
-                  onClick={() => addRow(group.supplierId)}
+                  onClick={() => addRow(group.supplierId, group.key)}
                   className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-2 text-xs font-bold text-white hover:bg-brand-800"
                 >
                   <Plus size={14} /> Produto
@@ -1218,7 +1221,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           <Truck size={16} className="shrink-0 text-brand-700" />
                           <select
                             value={group.supplierId}
-                            onChange={(e) => setSupplierForGroup(group.indexes, e.target.value)}
+                            onChange={(e) => setSupplierForGroup(group.key, e.target.value)}
                             className="input !h-9 !text-sm !px-2 min-w-[200px] font-bold text-brand-800"
                             title="Fornecedor deste grupo"
                           >
@@ -1227,7 +1230,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           </select>
                           <span className="shrink-0 text-xs font-semibold text-slate-600">{group.indexes.length} produto(s)</span>
                         </div>
-                        <button type="button" onClick={() => addRow(group.supplierId)} className="inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-800">
+                        <button type="button" onClick={() => addRow(group.supplierId, group.key)} className="inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-800">
                           <Plus size={14} /> Produto
                         </button>
                       </div>
@@ -1367,8 +1370,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         </div>
 
         <div className="mt-3">
-          <button onClick={() => addRow()} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
-            <Plus size={17} /> Adicionar produto
+          <button onClick={() => addRow('')} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
+            <Plus size={17} /> Adicionar fornecedor
           </button>
         </div>
       </section>
