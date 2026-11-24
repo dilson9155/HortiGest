@@ -1208,8 +1208,146 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             {loadingLists && <Spinner />}
           </div>
 
-          {/* Tabela única, igual à dos compradores: todas as colunas visíveis e edição direta. */}
-          <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+          {/* Celular/tablet: cards compactos, organizados e com textos escuros. */}
+          <div className="lg:hidden space-y-3">
+            {pendingBySupplier.map((group) => {
+              const collapsed = collapsedSuppliers.has(group.key);
+              return (
+                <div key={group.key} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2.5 border-b border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => toggleSupplier(group.key)}
+                      className="flex items-center gap-2 min-w-0 text-left"
+                      title={collapsed ? 'Expandir fornecedor' : 'Recolher fornecedor'}
+                    >
+                      {collapsed ? <ChevronRight size={17} className="shrink-0 text-brand-600" /> : <ChevronDown size={17} className="shrink-0 text-brand-600" />}
+                      <Truck size={17} className="shrink-0 text-brand-600" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-brand-700" title={group.name}>{group.name}</span>
+                        <span className="block text-[11px] font-medium text-slate-600">{group.items.length} entrada(s)</span>
+                      </span>
+                    </button>
+                    <div className="shrink-0 text-right pl-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Previsão total</div>
+                      <div className="text-base font-bold text-slate-900">{brNum(group.totalForecast, 0)}</div>
+                    </div>
+                  </div>
+
+                  {!collapsed && (
+                    <div className="divide-y divide-slate-100">
+                      {group.items.map((it: any) => {
+                        const d = draftFor(it);
+                        const receivedItem = it.status === 'RECEBIDO';
+                        const diff = deltaOf(it.forecast, it.received);
+                        const dateLabel = isoDate(it.launch.referenceDate).split('-').reverse().join('/');
+                        const dock = it.dockName || it.launch.dockName || '—';
+                        return (
+                          <div key={it.id} className="p-3 space-y-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-[15px] font-bold text-slate-900 leading-snug" title={it.productName ?? ''}>{it.productName}</div>
+                                <div className="mt-0.5 text-xs font-semibold text-slate-600">{dateLabel} · {dock}</div>
+                              </div>
+                              <span className={clsx('shrink-0 rounded px-2 py-1 text-[10px] font-bold uppercase', receivedItem ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600')}>
+                                {receivedItem ? 'Recebido' : 'Previsão'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                <div className="text-[10px] font-bold uppercase text-slate-500">Previsão</div>
+                                <div className="text-sm font-bold text-blue-800">{brNum(it.forecast, 0)}</div>
+                              </div>
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                <div className="text-[10px] font-bold uppercase text-slate-500">Recebido</div>
+                                <div className="text-sm font-bold text-slate-900">
+                                  {receivedItem ? brNum(it.received, 0) : (
+                                    <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                <div className="text-[10px] font-bold uppercase text-slate-500">Rendimento</div>
+                                <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <div className="mb-1 text-[11px] font-bold text-slate-700">Comprador</div>
+                                <div className="truncate rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-900" title={it.compradorName || it.launch.compradorName || ''}>
+                                  {it.compradorName || it.launch.compradorName || '—'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-1 text-[11px] font-bold text-slate-700">Conferente</div>
+                                {receivedItem ? (
+                                  <div className="truncate rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-900" title={it.conferenteName || it.launch.conferenteName || ''}>
+                                    {it.conferenteName || it.launch.conferenteName || '—'}
+                                  </div>
+                                ) : (
+                                  <select
+                                    value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
+                                    onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
+                                    className="input !h-9 !text-sm !px-2 w-full font-semibold text-slate-900"
+                                    title="Somente conferentes cadastrados"
+                                  >
+                                    <option value="">Selecione...</option>
+                                    {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                  </select>
+                                )}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-[11px] font-bold text-slate-700">Observações</label>
+                              <input
+                                value={d.notes}
+                                onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
+                                placeholder="banana para extra 15 kg sem cortes"
+                                className="input !h-10 !text-sm !px-2 w-full"
+                                title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                              <span className={clsx('text-sm font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>
+                                {receivedItem ? `Diferença: ${deltaLabel(diff)}` : 'Aguardando conferência'}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {canEdit && !receivedItem && (
+                                  <button onClick={() => saveConferenteItem(it)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar recebimento"><Save size={17} /></button>
+                                )}
+                                {canEdit && receivedItem && (
+                                  <button onClick={() => saveItemAdjustment(it, d)} disabled={loading} className="p-2 text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-30" title="Salvar rendimento e observação"><Save size={17} /></button>
+                                )}
+                                {canEdit && (
+                                  <button onClick={() => openLaunchEditor(it.launch)} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md" title="Editar"><Pencil size={17} /></button>
+                                )}
+                                {canDelete && (
+                                  <button onClick={() => setConfirmDelId(it.launch.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Excluir"><Trash2 size={17} /></button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {pendingBySupplier.length === 0 && (
+              <div className="rounded-xl border-2 border-dashed border-slate-200 p-8 text-center text-slate-600">
+                <ListChecks className="mx-auto mb-2 text-brand-300" size={30} />
+                <p className="text-sm font-semibold">Nenhuma entrada pendente para os filtros informados.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: tabela única, igual à dos compradores, com todas as colunas visíveis. */}
+          <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-300 bg-white">
             <table className="w-full table-fixed border-collapse text-sm min-w-[1200px]">
               <colgroup>
                 <col className="w-[7%]" />   {/* Data */}
@@ -1260,26 +1398,26 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       const dateLabel = isoDate(it.launch.referenceDate).split('-').reverse().join('/');
                       return (
                         <tr key={it.id} className="border-b border-slate-100 hover:bg-brand-50/40">
-                          <td className="border border-slate-200 p-1.5 text-center text-xs font-semibold whitespace-nowrap">{dateLabel}</td>
+                          <td className="border border-slate-200 p-1.5 text-center text-xs font-bold text-slate-900 whitespace-nowrap">{dateLabel}</td>
                           <td className="border border-slate-200 p-1.5 text-center align-middle">
-                            <span className="block max-w-full truncate text-xs font-bold text-slate-800" title={it.productName ?? ''}>{it.productName}</span>
+                            <span className="block max-w-full truncate text-xs font-bold text-slate-900" title={it.productName ?? ''}>{it.productName}</span>
                           </td>
                           <td className="border border-slate-200 p-1.5 text-right align-middle text-xs font-bold text-blue-700">{brNum(it.forecast, 0)}</td>
                           <td className="border border-slate-200 p-1.5 text-center align-middle">
-                            <span className="block max-w-full truncate text-xs font-semibold text-slate-700" title={it.dockName || it.launch.dockName || ''}>{it.dockName || it.launch.dockName || '—'}</span>
+                            <span className="block max-w-full truncate text-xs font-bold text-slate-900" title={it.dockName || it.launch.dockName || ''}>{it.dockName || it.launch.dockName || '—'}</span>
                           </td>
                           <td className="border border-slate-200 p-1.5 text-center text-xs font-semibold text-sky-700 whitespace-nowrap">{it.forecastTime ?? '—'}</td>
                           <td className="border border-sky-100 p-1.5 text-center align-middle">
-                            <span className="block max-w-full truncate text-xs font-bold text-sky-800" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</span>
+                            <span className="block max-w-full truncate text-xs font-bold text-slate-900" title={it.compradorName || it.launch.compradorName || ''}>{it.compradorName || it.launch.compradorName || '—'}</span>
                           </td>
                           <td className="border border-emerald-100 p-1.5 text-center align-middle">
                             {receivedItem ? (
-                              <span className="block max-w-full truncate text-xs font-bold text-emerald-800" title={it.conferenteName || it.launch.conferenteName || ''}>{it.conferenteName || it.launch.conferenteName || '—'}</span>
+                              <span className="block max-w-full truncate text-xs font-bold text-slate-900" title={it.conferenteName || it.launch.conferenteName || ''}>{it.conferenteName || it.launch.conferenteName || '—'}</span>
                             ) : (
                               <select
                                 value={d.conferenteId || registryIdByName(conferentesAtivos, it.conferenteName)}
                                 onChange={(e) => setDraft(it.id, { ...d, conferenteId: e.target.value })}
-                                className="input !h-9 !text-xs !px-1 w-full"
+                                className="input !h-9 !text-xs !px-1 w-full font-semibold text-slate-900"
                                 title="Somente conferentes cadastrados"
                               >
                                 <option value="">Selecione...</option>
@@ -1289,7 +1427,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           </td>
                           <td className="border border-emerald-100 p-1.5 text-right align-middle">
                             {receivedItem ? (
-                              <b className="text-emerald-700">{brNum(it.received, 0)}</b>
+                              <b className="text-slate-900">{brNum(it.received, 0)}</b>
                             ) : (
                               <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-xs !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                             )}
