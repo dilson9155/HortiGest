@@ -51,7 +51,7 @@ type Row = {
   status: ItemStatus;
 };
 
-type RowDefaults = Partial<Pick<Row, 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
+type RowDefaults = Partial<Pick<Row, 'supplierId' | 'dockId' | 'compradorId' | 'compradorName' | 'conferenteId' | 'conferenteName'>>;
 
 // Rascunho do conferente por item, mantido enquanto ele confere o grupo.
 type ReceiveDraft = {
@@ -103,7 +103,7 @@ function newRow(defaults: RowDefaults = {}): Row {
     _key: `r_${Math.random().toString(36).slice(2, 9)}`,
     launchId: '',
     productId: '',
-    supplierId: '',
+    supplierId: defaults.supplierId ?? '',
     compradorId: defaults.compradorId ?? '',
     compradorName: defaults.compradorName ?? '',
     conferenteId: defaults.conferenteId ?? '',
@@ -204,6 +204,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const receivingLocked = mode === 'buyers' && !canEditReceiving;
 
   const [date, setDate] = useState(todayISO());
+  const [defaultSupplierId, setDefaultSupplierId] = useState('');
   const [dockId, setDockId] = useState('');
   const [compradorId, setCompradorId] = useState('');
   const [conferenteId, setConferenteId] = useState('');
@@ -359,6 +360,21 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       );
   }, [rows, quickSearch, productOptions, supplierOptions, docks]);
 
+  // Um card por fornecedor: vários produtos entram no mesmo grupo, sem abrir outro card.
+  const buyerSupplierGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; supplierId: string; name: string; indexes: number[] }>();
+    for (const idx of visibleRowIndexes) {
+      const supplierId = rows[idx].supplierId || '';
+      const name = supplierOptions.find((o) => o.id === supplierId)?.label || 'Fornecedor não selecionado';
+      const key = supplierId || '__sem_fornecedor__';
+      if (!groups.has(key)) groups.set(key, { key, supplierId, name, indexes: [] });
+      groups.get(key)!.indexes.push(idx);
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }),
+    );
+  }, [visibleRowIndexes, rows, supplierOptions]);
+
   function setRow(idx: number, patch: Partial<Row>) {
     setRows((arr) =>
       arr.map((r, i) => {
@@ -370,10 +386,18 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     );
   }
 
-  function addRow() {
+  // Novo produto herda o fornecedor escolhido no topo (ou do grupo onde foi adicionado).
+  function addRow(supplierIdOverride?: string) {
     setRows((arr) => [
       ...arr,
-      newRow({ dockId, compradorId, compradorName, conferenteId, conferenteName }),
+      newRow({
+        supplierId: supplierIdOverride ?? defaultSupplierId,
+        dockId,
+        compradorId,
+        compradorName,
+        conferenteId,
+        conferenteName,
+      }),
     ]);
   }
 
@@ -382,6 +406,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     setRows((arr) =>
       arr.map((r) => ({
         ...r,
+        supplierId: defaultSupplierId || r.supplierId,
         dockId: dockId || r.dockId,
         compradorId: compradorId || r.compradorId,
         compradorName: compradorName.trim() || r.compradorName,
@@ -650,8 +675,15 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const pendingBySupplier = useMemo(() => {
     const groups = new Map<string, { key: string; name: string; items: any[]; totalForecast: number }>();
     for (const it of pendingFlat) {
-      const key = it.supplierId || '__sem_fornecedor__';
-      const name = it.supplierName || 'Sem fornecedor informado';
+      const supplierName = String(it.supplierName ?? '').trim();
+      // Usa o cadastro quando existe; senão o nome gravado, para não misturar
+      // fornecedores diferentes do histórico antigo.
+      const key = it.supplierId
+        ? `id:${it.supplierId}`
+        : supplierName
+          ? `nome:${supplierName.toLocaleLowerCase('pt-BR')}`
+          : '__sem_fornecedor__';
+      const name = supplierName || 'Sem fornecedor informado';
       if (!groups.has(key)) groups.set(key, { key, name, items: [], totalForecast: 0 });
       const group = groups.get(key)!;
       group.items.push(it);
@@ -659,12 +691,22 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     }
     return Array.from(groups.values())
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
-      .map((group) => ({
-        ...group,
-        items: [...group.items].sort((a, b) =>
-          String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'pt-BR', { sensitivity: 'base' }),
-        ),
-      }));
+      .map((group) => {
+        const buyers = new Set<string>();
+        const launches = new Set<string>();
+        for (const it of group.items) {
+          buyers.add(String(it.compradorName || it.launch?.compradorName || '—').trim());
+          launches.add(String(it.launch?.id ?? ''));
+        }
+        return {
+          ...group,
+          buyerCount: buyers.size,
+          launchCount: launches.size,
+          items: [...group.items].sort((a, b) =>
+            String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'pt-BR', { sensitivity: 'base' }),
+          ),
+        };
+      });
   }, [pendingFlat]);
 
   function toggleSupplier(key: string) {
@@ -676,7 +718,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     });
   }
 
-  function SupplierGroupHeader({ group }: { group: { key: string; name: string; items: any[]; totalForecast: number } }) {
+  function SupplierGroupHeader({ group }: { group: { key: string; name: string; items: any[]; totalForecast: number; buyerCount: number; launchCount: number } }) {
     const collapsed = collapsedSuppliers.has(group.key);
     return (
       <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b-2 border-brand-100">
@@ -692,7 +734,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <span className="block truncate text-sm font-bold text-brand-700 leading-snug" title={group.name}>
               {group.name}
             </span>
-            
+            <span className="block truncate text-[11px] font-semibold text-slate-600">
+              {group.items.length} produto(s) · {group.buyerCount} comprador(es) · {group.launchCount} lançamento(s)
+            </span>
           </span>
         </button>
         <div className="shrink-0 text-right pl-2">
@@ -912,6 +956,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <div className="w-36 shrink-0">
               <Input type="date" label="Data" value={date} onChange={(e) => setDate(e.target.value)} className="!h-9 !text-sm" />
             </div>
+            <div className="min-w-[180px] flex-1">
+              <label className="label">Fornecedor padrão</label>
+              <Select value={defaultSupplierId} onChange={(e) => setDefaultSupplierId(e.target.value)} className="!h-9 !text-sm">
+                <option value="">Selecione...</option>
+                {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </Select>
+            </div>
             <div className="min-w-[150px] flex-1">
               <label className="label">Comprador padrão</label>
               <Select
@@ -942,28 +993,41 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </div>
         </div>
 
-        {/* Celular/tablet: cards compactos com os mesmos campos da tabela. */}
+        {/* Celular/tablet: um card por fornecedor, com vários produtos dentro. */}
         <div className="lg:hidden space-y-3">
-          {visibleRowIndexes.map((idx) => {
-            const r = rows[idx];
-            const delta = deltaOf(r.forecast, r.received);
-            const productName = productOptions.find((o) => o.id === r.productId)?.label || 'Produto';
-            const supplierName = supplierOptions.find((o) => o.id === r.supplierId)?.label || 'Fornecedor';
-            return (
-              <div key={r._key} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2.5">
+          {buyerSupplierGroups.map((group) => (
+            <div key={group.key} className="rounded-xl border border-brand-200 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between gap-2 border-b-2 border-brand-100 bg-brand-50/70 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Truck size={18} className="shrink-0 text-brand-700" />
                   <div className="min-w-0">
-                    <div className="truncate text-[15px] font-bold text-slate-900" title={productName}>{productName}</div>
-                    <div className="truncate text-xs font-semibold text-slate-600" title={supplierName}>{supplierName}</div>
+                    <div className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</div>
+                    <div className="text-[11px] font-semibold text-slate-600">{group.indexes.length} produto(s)</div>
                   </div>
-                  {showFullEdit && (
-                    <span className={clsx('shrink-0 rounded px-2 py-1 text-[10px] font-bold uppercase', r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600')}>
-                      {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
-                    </span>
-                  )}
                 </div>
-
+                <button
+                  type="button"
+                  onClick={() => addRow(group.supplierId)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-2 text-xs font-bold text-white hover:bg-brand-800"
+                >
+                  <Plus size={14} /> Produto
+                </button>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {group.indexes.map((idx) => {
+                  const r = rows[idx];
+                  const delta = deltaOf(r.forecast, r.received);
+                  const productName = productOptions.find((o) => o.id === r.productId)?.label || 'Produto';
+                  return (
                 <div className="p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-[15px] font-bold text-slate-900" title={productName}>{productName}</div>
+                    {showFullEdit && (
+                      <span className={clsx('shrink-0 rounded px-2 py-1 text-[10px] font-bold uppercase', r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600')}>
+                        {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="mb-1 block text-[11px] font-bold text-slate-700">Produto</label>
@@ -1079,9 +1143,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30" title="Remover linha"><Trash2 size={17} /></button>
                   </div>
                 </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
         {/* Desktop: tabela estilo planilha, com todas as colunas visíveis. */}
@@ -1141,10 +1207,26 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               </tr>
             </thead>
             <tbody>
-              {visibleRowIndexes.map((idx) => {
-                const r = rows[idx];
-                const delta = deltaOf(r.forecast, r.received);
-                return (
+              {buyerSupplierGroups.map((group) => (
+                <Fragment key={group.key}>
+                  <tr className="bg-brand-50">
+                    <td colSpan={showFullEdit ? 14 : 8} className="border-b-2 border-brand-200 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Truck size={16} className="shrink-0 text-brand-700" />
+                          <span className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</span>
+                          <span className="shrink-0 text-xs font-semibold text-slate-600">{group.indexes.length} produto(s)</span>
+                        </div>
+                        <button type="button" onClick={() => addRow(group.supplierId)} className="inline-flex items-center gap-1 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-800">
+                          <Plus size={14} /> Produto
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {group.indexes.map((idx) => {
+                    const r = rows[idx];
+                    const delta = deltaOf(r.forecast, r.received);
+                    return (
                   <tr key={r._key} className={clsx(idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-brand-50/40')}>
                     <td className="border border-slate-200 p-1.5 align-middle">
                       <SearchSelect
@@ -1277,15 +1359,17 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+                    );
+                  })}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
 
         <div className="mt-3">
-          <button onClick={addRow} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
-            <Plus size={17} /> Adicionar linha
+          <button onClick={() => addRow()} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
+            <Plus size={17} /> Adicionar produto
           </button>
         </div>
       </section>
@@ -1412,7 +1496,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       <Truck size={17} className="shrink-0 text-brand-600" />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-brand-700" title={group.name}>{group.name}</span>
-                        
+                        <span className="block truncate text-[11px] font-semibold text-slate-600">
+                          {group.items.length} produto(s) · {group.buyerCount} comprador(es) · {group.launchCount} lançamento(s)
+                        </span>
                       </span>
                     </button>
                     <div className="shrink-0 text-right pl-2">
