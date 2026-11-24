@@ -6,7 +6,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
-  ArrowRight,
   ListChecks,
   Plus,
   Trash2,
@@ -15,7 +14,6 @@ import {
   Package,
   Truck,
   Pencil,
-  History,
   Save,
   Send,
   ChevronDown,
@@ -659,7 +657,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             <span className="block truncate text-sm font-bold text-brand-700 leading-snug" title={group.name}>
               {group.name}
             </span>
-            <span className="block text-[11px] text-slate-500">{group.items.length} entrada(s) neste fornecedor</span>
+            
           </span>
         </button>
         <div className="shrink-0 text-right pl-2">
@@ -835,14 +833,15 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     ? 'Editando lançamento'
                     : 'Lançamento compradores'}
               </h2>
-              <p className="text-sm text-slate-600">
-                {mode === 'reviewers'
-                  ? 'Ajuste os dados de conferência deste lançamento. O horário do conferente é registrado automaticamente e o grupo permanece pendente até todos os itens serem conferidos.'
-                  : 'Registre produto, fornecedor, comprador, doca, horário previsto e previsão. Tudo salvo fica agrupado para o conferente.'}
-              </p>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Link
+              href="/historico-lancamentos-compradores"
+              className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center bg-emerald-600 text-white hover:bg-emerald-700 transition"
+            >
+              Abrir histórico compradores
+            </Link>
             {editingLaunchId && (
               <Button variant="ghost" onClick={doClear}>Cancelar edição</Button>
             )}
@@ -888,10 +887,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               Aplicar às linhas
             </Button>
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">
-            Padrões para novos itens. O comprador vem somente dos cadastros; cada item pode ter seu próprio comprador, doca, horário previsto e observação.
-            {receivingLocked ? ' Conferente, recebido, rendimento e horário de conferência aparecem apenas para leitura.' : ''}
-          </p>
         </div>
 
         {/* Tabela estilo planilha — larguras percentuais: nenhuma coluna fica escondida. */}
@@ -1092,15 +1087,10 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </table>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="mt-3">
           <button onClick={addRow} className="h-10 px-4 rounded-lg font-semibold text-sm bg-white text-brand-700 border-2 border-dashed border-brand-300 hover:bg-brand-50 hover:border-brand-500 transition flex items-center gap-2">
             <Plus size={17} /> Adicionar linha
           </button>
-          <span className="text-xs text-slate-500">
-            {mode === 'reviewers'
-              ? 'Você pode salvar item por item. Use Tab para percorrer as colunas; o grupo sai da pendência quando todos os itens estiverem conferidos.'
-              : <>Você pode salvar item por item. Use <b>Tab</b> para percorrer as colunas. Cada previsão salva fica disponível no módulo <b>Lançamento conferentes</b>.</>}
-          </span>
         </div>
       </section>
       )}
@@ -1115,9 +1105,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             </div>
             <div className="min-w-0">
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Lançamento conferentes</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Confira o que chegou e salve item por item. O grupo vai para o histórico quando todos os itens estiverem conferidos.
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
@@ -1126,9 +1113,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             </Button>
             <Link
               href="/historico-lancamentos-conferentes"
-              className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 transition"
+              className="h-11 px-5 rounded-lg font-semibold text-base inline-flex items-center bg-emerald-600 text-white hover:bg-emerald-700 transition"
             >
-              <History size={18} /> Histórico conferentes <ArrowRight size={17} />
+              Abrir histórico conferentes
             </Link>
           </div>
         </div>
@@ -1204,7 +1191,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
             <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
-            <span className="inline-flex items-center gap-1"><History size={15} /> Atualizado automaticamente ao salvar um recebimento.</span>
             {loadingLists && <Spinner />}
           </div>
 
@@ -1225,7 +1211,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       <Truck size={17} className="shrink-0 text-brand-600" />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-brand-700" title={group.name}>{group.name}</span>
-                        <span className="block text-[11px] font-medium text-slate-600">{group.items.length} entrada(s)</span>
+                        
                       </span>
                     </button>
                     <div className="shrink-0 text-right pl-2">
@@ -1313,7 +1299,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
                             <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                               <span className={clsx('text-sm font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>
-                                {receivedItem ? `Diferença: ${deltaLabel(diff)}` : 'Aguardando conferência'}
+                                {receivedItem ? deltaLabel(diff) : '—'}
                               </span>
                               <div className="flex items-center gap-1">
                                 {canEdit && !receivedItem && (
@@ -1484,11 +1470,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <Link href="/historico-lancamentos-conferentes" className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-              Abrir histórico conferentes <ArrowRight size={15} />
-            </Link>
-          </div>
         </div>
       </section>
       )}

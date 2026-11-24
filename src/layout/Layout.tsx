@@ -14,7 +14,6 @@ import {
   Users,
   Settings,
   History,
-  ClipboardCheck,
   LogOut,
   Menu,
   X,
@@ -35,7 +34,7 @@ import { api } from '../lib/api';
 type Item = {
   to: string;
   label: string;
-  icon: React.ComponentType<{ size?: number | string; className?: string }>;
+  icon?: React.ComponentType<{ size?: number | string; className?: string }>;
   module?: string;
   action?: 'view' | 'create' | 'edit' | 'delete' | 'export';
 };
@@ -83,9 +82,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const items: Item[] = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard', action: 'view' },
     { to: '/lancamentos-compradores', label: 'Lançamento compradores', icon: ClipboardList, module: 'launches_buyers', action: 'view' },
-    { to: '/historico-lancamentos-compradores', label: 'Histórico de lançamento compradores', icon: History, module: 'launches_buyers', action: 'view' },
+    { to: '/historico-lancamentos-compradores', label: 'Histórico de lançamento compradores', module: 'launches_buyers', action: 'view' },
     { to: '/lancamentos-conferentes', label: 'Lançamento conferentes', icon: ListChecks, module: 'launches_reviewers', action: 'view' },
-    { to: '/historico-lancamentos-conferentes', label: 'Histórico lançamento conferentes', icon: ClipboardCheck, module: 'launches_reviewers', action: 'view' },
+    { to: '/historico-lancamentos-conferentes', label: 'Histórico lançamento conferentes', module: 'launches_reviewers', action: 'view' },
     { to: '/recebidos', label: 'Histórico de entradas', icon: CheckCircle2, module: 'launches', action: 'view' },
     { to: '/produtos', label: 'Produtos', icon: Boxes, module: 'products', action: 'view' },
     { to: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'suppliers', action: 'view' },
@@ -317,7 +316,9 @@ function SidebarContent({
                   )}
                   title={collapsed ? item.label : undefined}
                 >
-                  <item.icon size={18} className="shrink-0" />
+                  {item.icon
+                    ? <item.icon size={18} className="shrink-0" />
+                    : <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-base leading-none text-slate-400" aria-hidden>•</span>}
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </Link>
                 {collapsed && (
