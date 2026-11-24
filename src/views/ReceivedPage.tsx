@@ -118,6 +118,10 @@ function dateBR(d: unknown) {
   return s ? s.split('-').reverse().join('/') : '—';
 }
 
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+}
+
 export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
   const config = HISTORY_CONFIG[mode];
   const { can } = useAuth();
@@ -170,12 +174,12 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
         ...jobs,
         can('users', 'view') ? api.get('/users?pageSize=200') : Promise.resolve(null),
       ]);
-      if (p?.ok) setProducts(p.data);
-      if (s?.ok) setSuppliers(s.data);
-      if (d?.ok) setDocks(d.data);
-      if (cf?.ok) setConferentes(cf.data);
-      if (cp?.ok) setCompradores(cp.data);
-      if (u?.ok) setUsers((u.data.items ?? u.data) as Named[]);
+      if (p?.ok) setProducts(sortByName(p.data));
+      if (s?.ok) setSuppliers(sortByName(s.data));
+      if (d?.ok) setDocks(sortByName(d.data));
+      if (cf?.ok) setConferentes(sortByName(cf.data));
+      if (cp?.ok) setCompradores(sortByName(cp.data));
+      if (u?.ok) setUsers(sortByName((u.data.items ?? u.data) as Named[]));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -247,6 +251,18 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
           </>
         }
       >
+        <div className="mb-4">
+          <div className="relative w-full sm:max-w-xl">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="input !h-11 !text-sm pl-10"
+              value={filters.q}
+              onChange={(e) => set('q', e.target.value)}
+              placeholder="Pesquisa rápida: produto, fornecedor, doca, observação..."
+            />
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="self-center text-sm font-semibold text-slate-600 mr-1">Período rápido:</span>
           <Button variant="secondary" onClick={() => period(1)}>Hoje</Button>
@@ -321,14 +337,6 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
           </div>
           <Input type="time" label="Horário a partir de" value={filters.timeFrom} onChange={(e) => set('timeFrom', e.target.value)} />
           <Input type="time" label="Horário até" value={filters.timeTo} onChange={(e) => set('timeTo', e.target.value)} />
-          <div className="sm:col-span-2 xl:col-span-4">
-            <Input
-              label="Buscar"
-              value={filters.q}
-              onChange={(e) => set('q', e.target.value)}
-              placeholder="Produto, fornecedor, doca, conferente, comprador ou observação..."
-            />
-          </div>
         </div>
       </SectionCard>
 

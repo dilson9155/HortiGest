@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { FileDown, FileSpreadsheet, RefreshCw, Search, FileText } from 'lucide-react';
 import { api } from '../lib/api';
@@ -50,7 +50,12 @@ const emptyFilters = {
   conferenteId: '',
   compradorId: '',
   delta: '',
+  q: '',
 };
+
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+}
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -72,11 +77,11 @@ export default function ReportsPage() {
       api.get('/registries/conferentes/options'),
       api.get('/registries/compradores/options'),
     ]);
-    if (p.ok) setProducts(p.data);
-    if (s.ok) setSuppliers(s.data);
-    if (d.ok) setDocks(d.data);
-    if (cf.ok) setConferentes(cf.data);
-    if (cp.ok) setCompradores(cp.data);
+    if (p.ok) setProducts(sortByName(p.data));
+    if (s.ok) setSuppliers(sortByName(s.data));
+    if (d.ok) setDocks(sortByName(d.data));
+    if (cf.ok) setConferentes(sortByName(cf.data));
+    if (cp.ok) setCompradores(sortByName(cp.data));
   }
 
   function query() {
@@ -108,11 +113,22 @@ export default function ReportsPage() {
     }
   }
 
+  const firstRender = useRef(true);
   useEffect(() => {
     loadOptions();
     search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => search(), 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   function clearFilters() {
     setFilters(emptyFilters);
@@ -148,6 +164,18 @@ export default function ReportsPage() {
           </>
         }
       >
+        <div className="mb-4">
+          <div className="relative w-full sm:max-w-xl">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="input !h-11 !text-sm pl-10"
+              value={filters.q}
+              onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+              placeholder="Pesquisa rápida: produto, fornecedor, doca, observação..."
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Input type="date" label="Data inicial" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} />
           <Input type="date" label="Data final" value={filters.endDate} onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))} />

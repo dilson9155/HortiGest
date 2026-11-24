@@ -211,6 +211,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const [conferenteName, setConferenteName] = useState('');
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
+  const [quickSearch, setQuickSearch] = useState('');
   const [editingLaunchId, setEditingLaunchId] = useState<string | null>(null);
   // Último estado confirmado pelo servidor — usado para não bloquear a saída
   // depois que o item foi salvo individualmente.
@@ -240,6 +241,10 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
   const [receiveDrafts, setReceiveDrafts] = useState<Record<string, ReceiveDraft>>({});
 
+  function sortByName<T extends { name: string }>(list: T[]): T[] {
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+  }
+
   async function loadOptions() {
     const [p, s, d, c, f] = await Promise.all([
       api.get<Product[]>('/products/options?includeInactive=1'),
@@ -248,11 +253,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       api.get<NamedOption[]>('/registries/compradores/options?includeInactive=1'),
       api.get<NamedOption[]>('/registries/conferentes/options?includeInactive=1'),
     ]);
-    if (p.ok) setProducts(p.data);
-    if (s.ok) setSuppliers(s.data);
-    if (d.ok) setDocks(d.data);
-    if (c.ok) setCompradores(c.data);
-    if (f.ok) setConferentes(f.data);
+    if (p.ok) setProducts(sortByName(p.data));
+    if (s.ok) setSuppliers(sortByName(s.data));
+    if (d.ok) setDocks(sortByName(d.data));
+    if (c.ok) setCompradores(sortByName(c.data));
+    if (f.ok) setConferentes(sortByName(f.data));
   }
 
   function queryString(view: 'pending' | 'received') {
@@ -330,6 +335,21 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
   // Somente cadastros ativos podem ser selecionados como responsáveis.
   const compradoresAtivos = useMemo(() => compradores.filter((c) => c.active !== false), [compradores]);
   const conferentesAtivos = useMemo(() => conferentes.filter((c) => c.active !== false), [conferentes]);
+
+  const visibleRowIndexes = useMemo(() => {
+    const q = quickSearch.trim().toLocaleLowerCase('pt-BR');
+    if (!q) return rows.map((_, idx) => idx);
+    return rows.reduce<number[]>((acc, r, idx) => {
+      const product = productOptions.find((o) => o.id === r.productId)?.label ?? '';
+      const supplier = supplierOptions.find((o) => o.id === r.supplierId)?.label ?? '';
+      const dock = docks.find((d) => d.id === r.dockId)?.name ?? '';
+      const haystack = [product, supplier, r.compradorName, r.conferenteName, dock, r.forecastTime, r.notes]
+        .join(' ')
+        .toLocaleLowerCase('pt-BR');
+      if (haystack.includes(q)) acc.push(idx);
+      return acc;
+    }, []);
+  }, [rows, quickSearch, productOptions, supplierOptions, docks]);
 
   function setRow(idx: number, patch: Partial<Row>) {
     setRows((arr) =>
@@ -629,7 +649,14 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       group.items.push(it);
       group.totalForecast += Number(it.forecast ?? 0);
     }
-    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return Array.from(groups.values())
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((a, b) =>
+          String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'pt-BR', { sensitivity: 'base' }),
+        ),
+      }));
   }, [pendingFlat]);
 
   function toggleSupplier(key: string) {
@@ -853,6 +880,24 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </div>
         </header>
 
+        {/* Pesquisa rápida no topo da tabela. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:max-w-xl">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="input !h-11 !text-sm pl-10"
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+              placeholder="Pesquisa rápida: produto, fornecedor, comprador, observação..."
+            />
+          </div>
+          {quickSearch && (
+            <button type="button" onClick={() => setQuickSearch('')} className="text-sm font-semibold text-brand-700 hover:underline">
+              Limpar
+            </button>
+          )}
+        </div>
+
         {/* Padrões compactos — preenchem novas linhas; cada item pode ser diferente. */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4">
           <div className="flex flex-wrap items-end gap-2">
@@ -891,7 +936,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
         {/* Celular/tablet: cards compactos com os mesmos campos da tabela. */}
         <div className="lg:hidden space-y-3">
-          {rows.map((r, idx) => {
+          {visibleRowIndexes.map((idx) => {
+            const r = rows[idx];
             const delta = deltaOf(r.forecast, r.received);
             const productName = productOptions.find((o) => o.id === r.productId)?.label || 'Produto';
             const supplierName = supplierOptions.find((o) => o.id === r.supplierId)?.label || 'Fornecedor';
@@ -1087,7 +1133,8 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, idx) => {
+              {visibleRowIndexes.map((idx) => {
+                const r = rows[idx];
                 const delta = deltaOf(r.forecast, r.received);
                 return (
                   <tr key={r._key} className={clsx(idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-brand-50/40')}>
@@ -1261,6 +1308,18 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </div>
         </div>
 
+        <div className="px-5 sm:px-6 pt-4">
+          <div className="relative w-full sm:max-w-xl">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="input !h-11 !text-sm pl-10"
+              value={filters.q}
+              onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+              placeholder="Pesquisa rápida: produto, fornecedor, observação..."
+            />
+          </div>
+        </div>
+
         <div className="p-5 sm:p-6 space-y-5">
           {/* Filtros em painel próprio, com todos os campos alinhados. */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
@@ -1317,13 +1376,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                   <option value="">Todos</option>
                   {conferentes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
-              </div>
-              <div>
-                <label className="label">Buscar</label>
-                <div className="relative">
-                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input className="input !h-10 !text-sm pl-10" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="Produto, fornecedor, observação..." />
-                </div>
               </div>
             </div>
           </div>
