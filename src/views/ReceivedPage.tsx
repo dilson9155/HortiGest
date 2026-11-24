@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import {
@@ -13,6 +13,7 @@ import {
   Pencil,
   RefreshCw,
   Search,
+  Truck,
   X,
 } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
@@ -126,7 +127,12 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
   const config = HISTORY_CONFIG[mode];
   const { can } = useAuth();
   const { toast } = useToast();
-  const [filters, setFilters] = useState(emptyFilters);
+  // O histórico de conferentes mostra apenas o que já foi conferido.
+  const baseFilters = useMemo(
+    () => ({ ...emptyFilters, status: mode === 'reviewers' ? 'RECEBIDO' : '' }),
+    [mode],
+  );
+  const [filters, setFilters] = useState(baseFilters);
   const [products, setProducts] = useState<Named[]>([]);
   const [suppliers, setSuppliers] = useState<Named[]>([]);
   const [docks, setDocks] = useState<Named[]>([]);
@@ -213,9 +219,32 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
   }
 
   const activeFilters = useMemo(
-    () => Object.values(filters).filter(Boolean).length,
-    [filters],
+    () =>
+      Object.entries(filters).filter(
+        ([key, value]) =>
+          value && !(mode === 'reviewers' && key === 'status' && value === 'RECEBIDO'),
+      ).length,
+    [filters, mode],
   );
+
+  // Histórico agrupado por fornecedor, com produtos em ordem alfabética.
+  const groupedItems = useMemo(() => {
+    const sorted = [...items].sort((a, b) =>
+      String(a.supplierName || '').localeCompare(String(b.supplierName || ''), 'pt-BR', { sensitivity: 'base' }) ||
+      String(a.productName || '').localeCompare(String(b.productName || ''), 'pt-BR', { sensitivity: 'base' }) ||
+      dateBR(a.referenceDate).localeCompare(dateBR(b.referenceDate)),
+    );
+    const groups = new Map<string, { key: string; name: string; rows: ReceivedItem[]; totalReceived: number }>();
+    for (const it of sorted) {
+      const name = String(it.supplierName || '').trim() || 'Sem fornecedor informado';
+      const key = name.toLocaleLowerCase('pt-BR');
+      if (!groups.has(key)) groups.set(key, { key, name, rows: [], totalReceived: 0 });
+      const group = groups.get(key)!;
+      group.rows.push(it);
+      group.totalReceived += Number(it.received) || 0;
+    }
+    return Array.from(groups.values());
+  }, [items]);
 
   const canExport =
     can('reports', 'export') ||
@@ -229,7 +258,7 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
         description={config.description}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setFilters(emptyFilters)}>
+            <Button variant="secondary" onClick={() => setFilters(baseFilters)}>
               <X size={15} /> Limpar filtros
             </Button>
             <Button variant="secondary" onClick={search}>
@@ -391,7 +420,24 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((it, idx) => (
+                  {groupedItems.map((group) => (
+                    <Fragment key={group.key}>
+                      <tr className="bg-brand-50">
+                        <td colSpan={14} className="border-b-2 border-brand-100 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Truck size={16} className="shrink-0 text-brand-700" />
+                              <span className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</span>
+                              <span className="shrink-0 text-xs font-semibold text-slate-600">{group.rows.length} item(ns)</span>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recebido total</div>
+                              <div className="text-sm font-bold text-emerald-700">{brNum(group.totalReceived, 0)}</div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      {group.rows.map((it, idx) => (
                     <tr key={it.id} className={clsx('border-b border-slate-100', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50', 'hover:bg-emerald-50')}>
                       <td className="py-3 px-3 align-top font-semibold whitespace-normal break-words">{dateBR(it.referenceDate)}</td>
                       <td className="py-3 px-3 align-top text-xs whitespace-normal break-words">
@@ -426,6 +472,8 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                         </Link>
                       </td>
                     </tr>
+                      ))}
+                    </Fragment>
                   ))}
                 </tbody>
                 {totals && (
@@ -443,8 +491,19 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
               </table>
             </div>
 
-            <div className="xl:hidden space-y-3">
-              {items.map((it) => (
+            <div className="xl:hidden space-y-4">
+              {groupedItems.map((group) => (
+                <div key={group.key} className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Truck size={16} className="shrink-0 text-brand-700" />
+                      <span className="truncate text-sm font-bold text-brand-800" title={group.name}>{group.name}</span>
+                    </div>
+                    <span className="shrink-0 text-right text-[11px] font-semibold text-slate-600">
+                      {group.rows.length} item(ns) · {brNum(group.totalReceived, 0)} recebido(s)
+                    </span>
+                  </div>
+                  {group.rows.map((it) => (
                 <div key={it.id} className="card p-4 border border-slate-200">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -480,6 +539,8 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                   </div>
                   <div className="text-xs text-slate-600 mt-2 break-words"><b>Docа:</b> {it.dockName} · <b>Conferente:</b> {it.conferenteName} · <b>Comprador:</b> {it.compradorName}</div>
                   {it.notes && <div className="text-xs text-slate-600 mt-1 break-words"><b>Observações:</b> {it.notes}</div>}
+                </div>
+                  ))}
                 </div>
               ))}
               {totals && (

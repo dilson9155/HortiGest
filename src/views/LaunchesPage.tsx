@@ -676,13 +676,17 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
     return () => window.removeEventListener('beforeunload', handler);
   }, [currentSignature]);
 
+  // A tela de conferência mostra só o que ainda falta conferir. Assim que o
+  // conferente salva, o item sai daqui e passa a existir apenas no histórico.
   const pendingFlat = useMemo(
     () =>
       pending.flatMap((l) =>
-        (l.items ?? []).map((it: any) => ({
-          ...it,
-          launch: l,
-        })),
+        (l.items ?? [])
+          .filter((it: any) => it.status !== 'RECEBIDO' && Number(it.received || 0) <= 0)
+          .map((it: any) => ({
+            ...it,
+            launch: l,
+          })),
       ),
     [pending],
   );
@@ -833,7 +837,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
         delete next[it.id];
         return next;
       });
-      toast('success', 'Recebimento salvo e atualizado. O item permanece agrupado até o lançamento ser concluído.');
+      toast('success', 'Recebimento salvo. O item saiu da conferência e está no histórico.');
       await loadLists();
     } catch (err) {
       toast('error', errorMessage(err, 'Falha ao salvar recebimento.'));
@@ -1476,8 +1480,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
           {/* Resumo antes da lista. */}
           <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-            <Badge tone="sky">{pendingFlat.filter((x: any) => x.status !== 'RECEBIDO').length} item(ns) aguardando conferência</Badge>
-            <Badge tone="green">{pendingFlat.filter((x: any) => x.status === 'RECEBIDO').length} item(ns) já conferido(s) no grupo</Badge>
+            <Badge tone="sky">{pendingFlat.length} item(ns) aguardando conferência</Badge>
             {loadingLists && <Spinner />}
           </div>
 
