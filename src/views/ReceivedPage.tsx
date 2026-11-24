@@ -287,7 +287,7 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
               className="input !h-11 !text-sm pl-10"
               value={filters.q}
               onChange={(e) => set('q', e.target.value)}
-              placeholder="Pesquisa rápida: produto, fornecedor, doca, observação..."
+              placeholder=""
             />
           </div>
         </div>
@@ -448,7 +448,7 @@ export default function ReceivedPage({ mode = 'all' }: { mode?: HistoryMode }) {
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words leading-snug" title={it.supplierName}>{it.supplierName}</td>
                       <td className="py-3 px-3 align-top text-right font-bold text-blue-700 whitespace-normal break-words">{brNum(Number(it.forecast), 0)}</td>
                       <td className="py-3 px-3 align-top text-right font-bold text-emerald-700 whitespace-normal break-words">{brNum(Number(it.received), 0)}</td>
-                      <td className="py-3 px-3 align-top text-right font-bold text-purple-700 whitespace-normal break-words" title="Informado à mão — base de pagamento ao fornecedor">{brNum(Number(it.rendimento), 0)}</td>
+                      <td className="py-3 px-3 align-top text-right font-bold text-purple-700 whitespace-normal break-words">{brNum(Number(it.rendimento), 0)}</td>
                       <td className={clsx('py-3 px-3 align-top text-right font-bold whitespace-normal break-words', it.delta < 0 ? 'text-red-700' : it.delta > 0 ? 'text-emerald-700' : 'text-slate-500')}>{deltaLabel(it.delta)}</td>
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.dockName}</td>
                       <td className="py-3 px-3 align-top text-slate-600 whitespace-normal break-words">{it.conferenteName}</td>

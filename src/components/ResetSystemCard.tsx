@@ -114,7 +114,6 @@ export default function ResetSystemCard() {
           className="input !h-11"
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
-          placeholder="ZERAR"
           autoComplete="off"
         />
         <div className="mt-3 flex items-center gap-3 flex-wrap">

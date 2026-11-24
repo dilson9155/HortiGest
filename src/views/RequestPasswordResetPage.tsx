@@ -113,7 +113,7 @@ export default function RequestPasswordResetPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu.email@seudominio.com.br"
+                  placeholder=""
                   className="mt-2 h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-base focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none transition placeholder:text-slate-400"
                 />
 

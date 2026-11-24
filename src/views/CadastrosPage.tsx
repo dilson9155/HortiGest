@@ -365,7 +365,6 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
               label={`Nome do ${labels.singular}${isCatalog ? ' *' : ''}`}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={isProduct ? 'Ex.: Maçã Gala' : isCatalog ? 'Ex.: Hortifruti Bom Preço' : ''}
               maxLength={120}
               autoFocus
             />
@@ -374,7 +373,6 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                 label="Peso padrão da caixa (kg) *"
                 value={weight}
                 onValueChange={setWeight}
-                hint="Usado como snapshot em cada item do lançamento."
                 min={0}
                 step={0.001}
               />
@@ -394,14 +392,12 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                       label="Código interno"
                       value={extra.code ?? ''}
                       onChange={(e) => setField('code', e.target.value)}
-                      placeholder="Ex.: MAC-GALA"
                       maxLength={40}
                     />
                     <Input
                       label="Categoria"
                       value={extra.category ?? ''}
                       onChange={(e) => setField('category', e.target.value)}
-                      placeholder="Ex.: Fruta, Legume, Verdura"
                       maxLength={80}
                     />
                     <Select
@@ -421,28 +417,24 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                       label="Razão social"
                       value={extra.legalName ?? ''}
                       onChange={(e) => setField('legalName', e.target.value)}
-                      placeholder="Nome jurídico (opcional)"
                       maxLength={120}
                     />
                     <Input
                       label="CNPJ/CPF"
                       value={extra.document ?? ''}
                       onChange={(e) => setField('document', e.target.value)}
-                      placeholder="00.000.000/0001-00"
                       maxLength={30}
                     />
                     <Input
                       label="Nome do contato"
                       value={extra.contactName ?? ''}
                       onChange={(e) => setField('contactName', e.target.value)}
-                      placeholder="Ex.: João Silva"
                       maxLength={120}
                     />
                     <Input
                       label="Telefone"
                       value={extra.phone ?? ''}
                       onChange={(e) => setField('phone', e.target.value)}
-                      placeholder="(11) 99999-9999"
                       maxLength={30}
                     />
                     <Input
@@ -450,7 +442,6 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                       type="email"
                       value={extra.email ?? ''}
                       onChange={(e) => setField('email', e.target.value)}
-                      placeholder="contato@empresa.com.br"
                       maxLength={120}
                     />
                     <div className="grid grid-cols-2 gap-3">
@@ -458,14 +449,12 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                         label="Cidade"
                         value={extra.city ?? ''}
                         onChange={(e) => setField('city', e.target.value)}
-                        placeholder="Ex.: São Paulo"
                         maxLength={80}
                       />
                       <Input
                         label="UF"
                         value={extra.state ?? ''}
                         onChange={(e) => setField('state', e.target.value.toUpperCase())}
-                        placeholder="SP"
                         maxLength={2}
                       />
                     </div>
@@ -477,7 +466,6 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
                     className="input min-h-[76px] resize-y"
                     value={extra.notes ?? ''}
                     onChange={(e) => setField('notes', e.target.value)}
-                    placeholder="Informações adicionais (opcional)"
                     maxLength={2000}
                   />
                 </div>
@@ -500,7 +488,6 @@ export default function CadastrosPage({ kind }: { kind: CadastroKind }) {
       <ConfirmDialog
         open={!!confirmDelId}
         title="Inativar cadastro?"
-        description="Esta ação pode ser revertida ativando o registro novamente."
         onConfirm={() => { if (confirmDelId) return del(confirmDelId); }}
         onCancel={() => setConfirmDelId(null)}
       />

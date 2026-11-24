@@ -900,7 +900,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       <ConfirmDialog
         open={confirmClear}
         title="Limpar formulário?"
-        description="Há dados preenchidos que serão descartados."
         confirmLabel="Limpar"
         danger
         onConfirm={doClear}
@@ -909,7 +908,6 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
       <ConfirmDialog
         open={!!confirmDelId}
         title="Excluir lançamento?"
-        description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir"
         danger
         onConfirm={() => { if (confirmDelId) return deleteLaunch(confirmDelId); }}
@@ -960,7 +958,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               className="input !h-11 !text-sm pl-10"
               value={quickSearch}
               onChange={(e) => setQuickSearch(e.target.value)}
-              placeholder="Pesquisa rápida: produto, fornecedor, comprador, observação..."
+              placeholder=""
             />
           </div>
           {quickSearch && (
@@ -998,7 +996,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               </Select>
             </div>
             <div className="min-w-[280px] flex-[2]">
-              <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="banana para extra 15 kg sem cortes" className="!h-9 !text-sm" />
+              <Input label="Observações gerais" value={notes} onChange={(e) => setNotes(e.target.value)} className="!h-9 !text-sm" />
             </div>
             <Button variant="secondary" onClick={applyDefaultsToRows} className="!h-9 !text-sm">
               Aplicar às linhas
@@ -1088,7 +1086,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-bold text-slate-700">Previsão</label>
-                      <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <input type="number" min="0" step="0.001" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </div>
                   </div>
 
@@ -1124,7 +1122,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           {receivingLocked ? (
                             <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right text-sm font-bold text-slate-900">{brNum(r.received, 0)}</div>
                           ) : (
-                            <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            <input type="number" min="0" step="0.001" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           )}
                         </div>
                         <div>
@@ -1132,7 +1130,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                           {receivingLocked ? (
                             <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right text-sm font-bold text-slate-900">{brNum(r.rendimento, 0)}</div>
                           ) : (
-                            <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            <input type="number" min="0" step="0.001" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           )}
                         </div>
                       </div>
@@ -1147,7 +1145,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
 
                   <div>
                     <label className="mb-1 block text-[11px] font-bold text-slate-700">Observações</label>
-                    <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="banana para extra 15 kg sem cortes" className="input !h-10 !text-sm !px-2 w-full" />
+                    <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} className="input !h-10 !text-sm !px-2 w-full" />
                   </div>
 
                   <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
@@ -1252,7 +1250,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         items={productOptions}
                         value={r.productId}
                         onChange={(id) => setRow(idx, { productId: id })}
-                        placeholder="Produto..."
+                        placeholder=""
                         className="[&_input]:!text-center [&_input]:!text-[15px] [&_input]:!font-semibold"
                       />
                     </td>
@@ -1280,13 +1278,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       </select>
                     </td>
                     <td className="border border-sky-100 p-1.5 align-middle">
-                      <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <input type="number" min="0" step="0.001" value={r.forecast} onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                     </td>
                     {showFullEdit && (
                       <>
                         <td className="border border-emerald-100 p-1.5 align-middle">
                           {receivingLocked ? (
-                            <div className="flex h-9 items-center justify-center rounded-md bg-emerald-50/60 px-2 text-sm text-emerald-900" title="Somente o setor de conferência pode alterar">
+                            <div className="flex h-9 items-center justify-center rounded-md bg-emerald-50/60 px-2 text-sm text-emerald-900">
                               {r.conferenteName || '—'}
                             </div>
                           ) : (
@@ -1307,27 +1305,27 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         <td className="border border-emerald-100 p-1.5 align-middle">
                           <div
                             className="flex h-9 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50/60 px-2 text-sm font-semibold tabular-nums text-emerald-800"
-                            title="Registrado automaticamente ao informar a quantidade recebida"
+                           
                           >
                             {r.entryTime || '—'}
                           </div>
                         </td>
                         <td className="border border-emerald-100 p-1.5 align-middle">
                           {receivingLocked ? (
-                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800" title="Somente o setor de conferência pode alterar">
+                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800">
                               {brNum(r.received, 0)}
                             </div>
                           ) : (
-                            <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            <input type="number" min="0" step="0.001" value={r.received} onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           )}
                         </td>
                         <td className="border border-emerald-100 p-1.5 align-middle">
                           {receivingLocked ? (
-                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800" title="Somente o setor de conferência pode alterar">
+                            <div className="flex h-9 items-center justify-end rounded-md bg-emerald-50/60 px-2 text-sm font-bold tabular-nums text-emerald-800">
                               {brNum(r.rendimento, 0)}
                             </div>
                           ) : (
-                            <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} title="Informado à mão — base de pagamento do fornecedor" className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            <input type="number" min="0" step="0.001" value={r.rendimento} onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-sm !px-2 text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           )}
                         </td>
                         <td className={clsx('border border-slate-200 p-1.5 text-center font-bold align-middle', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-700' : 'text-slate-500') : 'text-slate-300')}>
@@ -1335,7 +1333,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                         </td>
                         <td className="border border-slate-200 p-1.5 text-center align-middle">
                           <span
-                            title="Automático: muda para Recebido quando o conferente informa a quantidade recebida"
+                           
                             className={clsx(
                               'inline-flex w-full items-center justify-center rounded px-1 py-1.5 text-xs font-bold uppercase',
                               r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500',
@@ -1347,7 +1345,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                       </>
                     )}
                     <td className="border border-slate-200 p-1.5 align-middle">
-                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="banana para extra 15 kg sem cortes" className="input !h-9 !text-sm !px-2" title="Observação deste produto" />
+                      <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} className="input !h-9 !text-sm !px-2" />
                     </td>
                     <td className="border border-slate-200 p-1.5 text-center align-middle">
                       <div className="flex items-center justify-center gap-1">
@@ -1413,7 +1411,7 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
               className="input !h-11 !text-sm pl-10"
               value={filters.q}
               onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-              placeholder="Pesquisa rápida: produto, fornecedor, observação..."
+              placeholder=""
             />
           </div>
         </div>
@@ -1541,13 +1539,13 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                                 <div className="text-[10px] font-bold uppercase text-slate-500">Recebido</div>
                                 <div className="text-sm font-bold text-slate-900">
                                   {receivedItem ? brNum(it.received, 0) : (
-                                    <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                    <input type="number" min="0" step="0.001" value={d.received} onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                                   )}
                                 </div>
                               </div>
                               <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
                                 <div className="text-[10px] font-bold uppercase text-slate-500">Rendimento</div>
-                                <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                <input type="number" min="0" step="0.001" value={d.rendimento} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-8 !text-sm !px-1 w-full text-right !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                               </div>
                             </div>
 
@@ -1583,9 +1581,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                               <input
                                 value={d.notes}
                                 onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
-                                placeholder="banana para extra 15 kg sem cortes"
+                               
                                 className="input !h-10 !text-sm !px-2 w-full"
-                                title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                               
                               />
                             </div>
 
@@ -1707,11 +1705,11 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             {receivedItem ? (
                               <b className="text-slate-900">{brNum(it.received, 0)}</b>
                             ) : (
-                              <input type="number" min="0" step="0.001" value={d.received} placeholder="0" onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-xs !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                              <input type="number" min="0" step="0.001" value={d.received} onChange={(e) => setDraft(it.id, { ...d, received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-xs !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                             )}
                           </td>
                           <td className="border border-emerald-100 p-1.5 text-right align-middle">
-                            <input type="number" min="0" step="0.001" value={d.rendimento} placeholder="0" title={receivedItem ? 'Rendimento permanece editável após a conferência' : 'Informado à mão — base de pagamento do fornecedor'} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-xs !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                            <input type="number" min="0" step="0.001" value={d.rendimento} onChange={(e) => setDraft(it.id, { ...d, rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-9 !text-xs !px-2 w-full text-right !placeholder:text-slate-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                           </td>
                           <td className="border border-emerald-100 p-1.5 text-center text-sm font-semibold tabular-nums text-emerald-700 whitespace-nowrap">{it.entryTime ?? '—'}</td>
                           <td className={clsx('border border-slate-200 p-1.5 text-right font-bold', diff < 0 ? 'text-red-700' : diff > 0 ? 'text-emerald-700' : 'text-slate-500')}>{receivedItem ? deltaLabel(diff) : '—'}</td>
@@ -1724,9 +1722,9 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
                             <input
                               value={d.notes}
                               onChange={(e) => setDraft(it.id, { ...d, notes: e.target.value })}
-                              placeholder="banana para extra 15 kg sem cortes"
+                             
                               className="input !h-9 !text-[11px] !px-2 w-full"
-                              title={receivedItem ? 'Observação permanece editável após a conferência' : 'Observação deste item'}
+                             
                             />
                           </td>
                           <td className="border border-slate-200 p-1.5 text-center align-middle">

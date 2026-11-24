@@ -122,7 +122,7 @@ export default function ResetPasswordPage({ token }: { token: string }) {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder=""
                       className="h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 pr-12 text-base focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none transition"
                     />
                     <button
@@ -147,7 +147,7 @@ export default function ResetPasswordPage({ token }: { token: string }) {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder=""
                     className="mt-2 h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-base focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none transition"
                   />
                 </div>

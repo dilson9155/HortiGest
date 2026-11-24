@@ -171,7 +171,7 @@ export default function ReportsPage() {
               className="input !h-11 !text-sm pl-10"
               value={filters.q}
               onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-              placeholder="Pesquisa rápida: produto, fornecedor, doca, observação..."
+              placeholder=""
             />
           </div>
         </div>

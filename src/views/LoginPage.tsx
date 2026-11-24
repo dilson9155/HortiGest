@@ -102,7 +102,7 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full h-12 pl-11 pr-4 text-base rounded-xl border-2 border-slate-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none transition placeholder:text-slate-400"
-                  placeholder="seu.usuario"
+                  placeholder=""
                 />
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full h-12 pl-11 pr-14 text-base rounded-xl border-2 border-slate-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none transition placeholder:text-slate-400"
-                  placeholder="••••••••"
+                  placeholder=""
                 />
                 <button
                   type="button"
