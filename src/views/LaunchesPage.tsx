@@ -889,8 +889,149 @@ export default function LaunchesPage({ mode = 'buyers' }: { mode?: LaunchMode })
           </div>
         </div>
 
-        {/* Tabela estilo planilha — larguras percentuais: nenhuma coluna fica escondida. */}
-        <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+        {/* Celular/tablet: cards compactos com os mesmos campos da tabela. */}
+        <div className="lg:hidden space-y-3">
+          {rows.map((r, idx) => {
+            const delta = deltaOf(r.forecast, r.received);
+            const productName = productOptions.find((o) => o.id === r.productId)?.label || 'Produto';
+            const supplierName = supplierOptions.find((o) => o.id === r.supplierId)?.label || 'Fornecedor';
+            return (
+              <div key={r._key} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-bold text-slate-900" title={productName}>{productName}</div>
+                    <div className="truncate text-xs font-semibold text-slate-600" title={supplierName}>{supplierName}</div>
+                  </div>
+                  {showFullEdit && (
+                    <span className={clsx('shrink-0 rounded px-2 py-1 text-[10px] font-bold uppercase', r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600')}>
+                      {r.status === 'RECEBIDO' ? 'Recebido' : 'Previsão'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-3 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Produto</label>
+                      <select value={r.productId} onChange={(e) => setRow(idx, { productId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
+                        <option value="">Selecione...</option>
+                        {productOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Fornecedor</label>
+                      <select value={r.supplierId} onChange={(e) => setRow(idx, { supplierId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
+                        <option value="">Selecione...</option>
+                        {supplierOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Comprador</label>
+                      <select
+                        value={r.compradorId || registryIdByName(compradoresAtivos, r.compradorName)}
+                        onChange={(e) => {
+                          const found = compradores.find((c) => c.id === e.target.value);
+                          setRow(idx, { compradorId: e.target.value, compradorName: found?.name ?? '' });
+                        }}
+                        className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900"
+                      >
+                        <option value="">Selecione...</option>
+                        {compradoresAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Docа</label>
+                      <select value={r.dockId} onChange={(e) => setRow(idx, { dockId: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900">
+                        <option value="">—</option>
+                        {docks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Hor. previsto</label>
+                      <input type="time" value={r.forecastTime} onChange={(e) => setRow(idx, { forecastTime: e.target.value })} className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-700">Previsão</label>
+                      <input type="number" min="0" step="0.001" value={r.forecast} placeholder="0" onChange={(e) => setRow(idx, { forecast: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                    </div>
+                  </div>
+
+                  {showFullEdit && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-700">Conferente</label>
+                          {receivingLocked ? (
+                            <div className="truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-sm font-bold text-slate-900">{r.conferenteName || '—'}</div>
+                          ) : (
+                            <select
+                              value={r.conferenteId || registryIdByName(conferentesAtivos, r.conferenteName)}
+                              onChange={(e) => {
+                                const found = conferentes.find((c) => c.id === e.target.value);
+                                setRow(idx, { conferenteId: e.target.value, conferenteName: found?.name ?? '' });
+                              }}
+                              className="input !h-10 !text-sm !px-2 w-full font-semibold text-slate-900"
+                            >
+                              <option value="">Selecione...</option>
+                              {conferentesAtivos.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          )}
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-700">Hor. conf.</label>
+                          <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-sm font-bold tabular-nums text-slate-900">{r.entryTime || '—'}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-700">Recebido</label>
+                          {receivingLocked ? (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right text-sm font-bold text-slate-900">{brNum(r.received, 0)}</div>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={r.received} placeholder="0" onChange={(e) => setRow(idx, { received: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          )}
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-bold text-slate-700">Rendimento</label>
+                          {receivingLocked ? (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right text-sm font-bold text-slate-900">{brNum(r.rendimento, 0)}</div>
+                          ) : (
+                            <input type="number" min="0" step="0.001" value={r.rendimento} placeholder="0" onChange={(e) => setRow(idx, { rendimento: e.target.value === '' ? '' : Number(e.target.value) })} className="input !h-10 !text-sm !px-2 w-full text-right font-bold text-slate-900 !placeholder:text-slate-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                        <span className="text-[11px] font-bold uppercase text-slate-600">Delta</span>
+                        <span className={clsx('text-sm font-bold', r.status === 'RECEBIDO' ? (delta < 0 ? 'text-red-700' : delta > 0 ? 'text-emerald-700' : 'text-slate-700') : 'text-slate-400')}>
+                          {r.status === 'RECEBIDO' ? deltaLabel(delta) : '—'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="mb-1 block text-[11px] font-bold text-slate-700">Observações</label>
+                    <input value={r.notes} onChange={(e) => setRow(idx, { notes: e.target.value })} placeholder="banana para extra 15 kg sem cortes" className="input !h-10 !text-sm !px-2 w-full" />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
+                    <button onClick={() => saveSingleRow(idx)} disabled={loading} className="p-2 text-brand-700 hover:bg-brand-50 rounded-md disabled:opacity-30" title="Salvar somente este item"><Save size={17} /></button>
+                    <button onClick={() => removeRow(idx)} disabled={rows.length === 1} className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-30" title="Remover linha"><Trash2 size={17} /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop: tabela estilo planilha, com todas as colunas visíveis. */}
+        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-300 bg-white">
           <table className={clsx('w-full border-collapse text-sm table-fixed', showFullEdit ? 'min-w-[1200px] lg:min-w-0' : 'min-w-[900px] lg:min-w-0')}>
             <colgroup>
               {showFullEdit ? (
